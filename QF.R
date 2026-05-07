@@ -6,11 +6,22 @@ library("readxl")
 install.packages("GGally")
 library("GGally")
 
+install.packages("e1071")
+library(e1071)
+
 #--------------------------DATA PROCESSING --------------------------
 
+# Janek:
+# df_init <- read_excel("/Users/janekczajnik/Desktop/Erasmus/B3/Introductory Seminar CS/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+
+# Balint
+df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+
+# Luca
+# setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
-df_init <- read_excel("/Users/janekczajnik/Desktop/Erasmus/B3/Introductory Seminar CS/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+# df_init <- read_excel("data.xlsx")[-1, ]
 
 #Divide the days into positive, negative or zero returns 
 df_pos <- df_init[df_init$`CC Return (%)` > 0, ]
@@ -195,7 +206,166 @@ shock <- rt - mu
 # Time-varying effective alpha
 alpha1_hat <- gjr_fit$par[2]
 alpha2_hat <- gjr_fit$par[3]
-alpha_eff <- (alpha1_hat + alpha2_hat) / 2
+alpha_eff <- alpha1_hat + 0.5 * alpha2_hat
 
 h_long_gjr <- (as.numeric(gjr_fit$par[1]))/(as.numeric(1 - alpha_eff - gjr_fit$par[4]))
 print(h_long_gjr)
+
+RTgarch11 <- function(par, rt, mu) {
+  omega <- par[1]
+  alpha <- par[2]
+  beta  <- par[3]
+  psi <- par[4]
+  
+  # Penalize invalid parameter values
+  if (omega <= 0 || alpha < 0 || beta < 0 || psi < 0 || beta + psi >= 1) {
+    return(1e10)
+  }
+  
+  T <- length(rt)
+  h <- numeric(T)
+  
+  # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+  h[1] <- omega / (1 - beta - psi)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) {
+    return(1e10)
+  }
+  
+  
+  
+  
+  # Generate conditional variances recursively
+  for (t in 1:(T - 1)) {
+    h[t + 1] <- 0.5*(omega + beta*h[t] + alpha*(rt[t] - mu)^2) + 0.5*sqrt((omega + beta*h[t] + alpha*(rt[t] - mu)^2)^2 + 4*psi*h[t]*(rt[t+1] - mu)^2)
+  }
+  
+  # Now check h after it has been generated
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
+    return(1e10)
+  }
+  
+  
+  h_tm1 <- h[-T]
+  h <- h[-1]
+  rt <- rt[-1]
+  
+  # Negative log-likelihood
+  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu)^2/h-log(sqrt(h)/(h+psi*h_tm1*(rt-mu)^2/h)))
+  
+  
+  if (!is.finite(RTgarch11ll)) {
+    return(1e10)
+  }
+  
+  return(RTgarch11ll)
+}
+
+
+start_par_RT <- c(
+  omega = 0.04590705,
+  alpha = 0.19226977 ,
+  beta  = 0.77380626 ,
+  psi = 0.01
+)
+
+RTgarch_fit <- optim(
+  par = start_par_RT,
+  fn = RTgarch11,
+  rt = rt,
+  mu = mu,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+RTgarch_fit$par
+RTgarch_fit$value
+RTgarch_fit$convergence
+
+h_long = (as.numeric(RTgarch_fit$par[1]))/(as.numeric(1 - RTgarch_fit$par[3] - RTgarch_fit$par[4]))
+
+#model implied unconditional variance 
+print(h_long)
+
+RTgjr_garch <- function(par, rt, mu) {
+  
+  omega  <- par[1]
+  alpha1 <- par[2]
+  alpha2 <- par[3]
+  beta   <- par[4]
+  phi1   <- par[5]
+  phi2   <- par[6]
+  
+  phi_bar   <- (phi1 + phi2) / 2
+  alpha_bar <- (alpha1 + alpha2) / 2
+  
+  if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
+      phi1 < 0 || phi2 < 0 ||
+      beta + phi_bar + alpha_bar*(1-phi_bar) + 1.5*(alpha1*phi1+alpha2*phi2) >= 1) return(1e10)
+  
+  T <- length(rt)
+  h <- numeric(T)
+  h[1] <- omega / (1 - beta - phi_bar)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) return(1e10)
+  
+  for (t in 1:(T-1)) {
+    alpha_t <- ifelse(rt[t]   <= mu, alpha1, alpha2)
+    phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
+    g_t     <- omega + beta*h[t] + alpha_t*(rt[t]-mu)^2
+    h[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h[t]*(rt[t+1]-mu)^2)
+  }
+  
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) return(1e10)
+  
+  h_tm1   <- h[-T]
+  h_cur   <- h[-1]
+  rt_cur  <- rt[-1]
+  phi_vec <- ifelse(rt_cur <= mu, phi1, phi2)
+  
+  ll <- sum(
+    0.5*log(2*pi) +
+      0.5*(rt_cur-mu)^2/h_cur -
+      log(sqrt(h_cur)/(h_cur + phi_vec*h_tm1*(rt_cur-mu)^2/h_cur))
+  )
+  
+  if (!is.finite(ll)) return(1e10)
+  return(ll)
+}
+
+start_par_RTgjr <- c(
+  omega  = RTgarch_fit$par[1],
+  alpha1 = RTgarch_fit$par[2] * 1.2,
+  alpha2 = RTgarch_fit$par[2] * 0.8,
+  beta   = RTgarch_fit$par[3],
+  phi1   = RTgarch_fit$par[4] * 1.1,
+  phi2   = RTgarch_fit$par[4] * 0.9
+)
+
+RTgjr_fit <- optim(
+  par    = start_par_RTgjr,
+  fn     = RTgjr_garch,
+  rt     = rt,
+  mu     = mu,
+  method = "L-BFGS-B",
+  lower  = c(1e-8, 0, 0, 0, 0, 0),
+  upper  = c(Inf,  1, 1, 1, 1, 1)
+)
+
+RTgjr_fit$par
+RTgjr_fit$value
+RTgjr_fit$convergence
+
+#Information Criterion:
+
+AIC_GARCH    <- 2*3 + 2*garch_fit$value      # 3 params
+AIC_GJR      <- 2*4 + 2*gjr_fit$value        # 4 params
+AIC_RTGARCH  <- 2*4 + 2*RTgarch_fit$value    # 4 params
+AIC_RTgjr    <- 2*6 + 2*RTgjr_fit$value      # 6 params
+
+print(c(GARCH    = AIC_GARCH,
+        GJR      = AIC_GJR,
+        RT_GARCH = AIC_RTGARCH,
+        RT_GJR   = AIC_RTgjr))
