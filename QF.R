@@ -140,7 +140,7 @@ garch_gjr <- function(par, rt, mu) {
   # omega > 0, alpha1 >= 0, alpha2 >= 0, beta >= 0
   # Stationarity: alpha1 + 0.5 * alpha2 + beta < 1
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
-      alpha1 + 0.5 * alpha2 + beta >= 1) {
+      (alpha1 + alpha2) / 2 + beta >= 1) {
     return(1e10)
   }
   
@@ -160,9 +160,9 @@ garch_gjr <- function(par, rt, mu) {
     
     indicator <- ifelse(shock[t] < 0, 1, 0)
     
-    h[t + 1] <- omega +
-      alpha1 * shock[t]^2 +
-      alpha2 * indicator * shock[t]^2 +
+    h[t+1] <- omega +
+      alpha1 * indicator * shock[t]^2 +        # alpha1 when negative
+      alpha2 * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
       beta * h[t]
   }
   
@@ -182,8 +182,8 @@ garch_gjr <- function(par, rt, mu) {
 
 start_par_gjr <- c(
   omega  = 0.05,
-  alpha1 = 0.03,
-  alpha2 = 0.07,
+  alpha1 = 0.15,  # negative shock reaction — larger
+  alpha2 = 0.05,  # positive shock reaction — smaller
   beta   = 0.85
 )
 
@@ -206,7 +206,7 @@ shock <- rt - mu
 # Time-varying effective alpha
 alpha1_hat <- gjr_fit$par[2]
 alpha2_hat <- gjr_fit$par[3]
-alpha_eff <- alpha1_hat + 0.5 * alpha2_hat
+alpha_eff <- (alpha1_hat + alpha2_hat) / 2
 
 h_long_gjr <- (as.numeric(gjr_fit$par[1]))/(as.numeric(1 - alpha_eff - gjr_fit$par[4]))
 print(h_long_gjr)
@@ -344,14 +344,35 @@ start_par_RTgjr <- c(
   phi2   = RTgarch_fit$par[4] * 0.9
 )
 
+start_par_RTgjr <- c(
+  omega  = 0.05,
+  alpha1 = 0.08,
+  alpha2 = 0.02,
+  beta   = 0.75,
+  phi1   = 0.10,
+  phi2   = 0.08
+)
+
+# RTgjr_fit <- optim(
+#   par     = start_par_RTgjr,
+#   fn      = RTgjr_garch,
+#   rt      = rt,
+#   mu      = mu,
+#   method  = "L-BFGS-B",
+#   lower   = c(1e-8, 0, 0, 0, 0, 0),
+#   upper   = c(Inf,  1, 1, 1, 1, 1),
+#   control = list(maxit = 1000, factr = 1e7)
+# )
+
 RTgjr_fit <- optim(
-  par    = start_par_RTgjr,
-  fn     = RTgjr_garch,
-  rt     = rt,
-  mu     = mu,
-  method = "L-BFGS-B",
-  lower  = c(1e-8, 0, 0, 0, 0, 0),
-  upper  = c(Inf,  1, 1, 1, 1, 1)
+  par     = start_par_RTgjr,
+  fn      = RTgjr_garch,
+  rt      = rt,
+  mu      = mu,
+  method  = "L-BFGS-B",
+  lower   = c(1e-8, 0, 1e-8, 0, 0, 1e-8),
+  upper   = c(Inf,  1, 1,    1, 1, 1),
+  control = list(maxit = 1000)
 )
 
 RTgjr_fit$par
