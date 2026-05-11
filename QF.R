@@ -484,6 +484,4 @@ print(c(GARCH    = AIC_GARCH,
         RT_GJR   = AIC_RTgjr))
 
 
-#Mock Comment 
-summary(AIC_GARCH)
 
