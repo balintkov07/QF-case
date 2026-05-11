@@ -482,3 +482,8 @@ print(c(GARCH    = AIC_GARCH,
         GJR      = AIC_GJR,
         RT_GARCH = AIC_RTGARCH,
         RT_GJR   = AIC_RTgjr))
+
+
+#Mock Comment 
+summary(AIC_GARCH)
+
