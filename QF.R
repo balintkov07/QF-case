@@ -15,13 +15,14 @@ library(e1071)
 # df_init <- read_excel("/Users/janekczajnik/Desktop/Erasmus/B3/Introductory Seminar CS/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Balint
-df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+#df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-# setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
-# df_init <- read_excel("data.xlsx")[-1, ]
+
+df_init <- read_excel("data.xlsx")[-1, ]
 
 #Divide the days into positive, negative or zero returns 
 df_pos <- df_init[df_init$`CC Return (%)` > 0, ]
@@ -397,7 +398,7 @@ bestValuesGJRGARCH <- c(omega = 0,
 
 num <- 0
 
-for (o in seq(from = 0, to=1, by=0.1)) {
+for (o in seq(from = 0.4, to=0.6, by=0.1)) {
   for(a1 in seq(from=0, to=1, by=0.1)) {
    for(a2 in seq(from=0, to=1, by=0.1)) {
      for(b in seq(from=0, to=1, by=0.1)){
