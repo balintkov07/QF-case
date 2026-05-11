@@ -382,6 +382,97 @@ RTgjr_fit$convergence
 
 #Information Criterion:
 
+#Loop for best starting values:
+
+bestValuesGARCH <- c(omega = 0,
+                alpha = 0,
+                beta = 0,
+                llvalue = Inf)
+
+bestValuesGJRGARCH <- c(omega = 0,
+                     alpha1 = 0,
+                     alpha2 = 0,
+                     beta = 0,
+                     llvalue = Inf)
+
+num <- 0
+
+for (o in seq(from = 0, to=1, by=0.1)) {
+  for(a1 in seq(from=0, to=1, by=0.1)) {
+   for(a2 in seq(from=0, to=1, by=0.1)) {
+     for(b in seq(from=0, to=1, by=0.1)){
+       
+       start_par <- c(
+         omega = o,
+         alpha = (a1+a2)/2,
+         beta  = b
+       )
+       
+       start_par_gjr <- c(
+         omega  = o,
+         alpha1 = a1,  # negative shock reaction — larger
+         alpha2 = a2,  # positive shock reaction — smaller
+         beta   = b
+       )
+       
+       garch_fit <- optim(
+         par = start_par,
+         fn = garch11,
+         rt = rt,
+         mu = mu,
+         method = "L-BFGS-B",
+         #Omega > 0 to inf, remaining are bounded by 0 and 1 
+         lower = c(1e-8, 0, 0),
+         upper = c(Inf, 1, 1)
+       )
+       
+       gjr_fit <- optim(
+         par = start_par_gjr,
+         fn = garch_gjr,
+         rt = rt,
+         mu = mu,
+         method = "L-BFGS-B",
+         lower = c(1e-8, 0, 0, 0),
+         upper = c(10, 1, 1, 1)
+       )
+       
+       if (garch_fit$value < bestValuesGARCH["llvalue"]) {
+         bestValuesGARCH["omega"] <- garch_fit$par["omega"]
+         bestValuesGARCH["alpha"] <- garch_fit$par["alpha"]
+         bestValuesGARCH["beta"] <- garch_fit$par["beta"]
+         bestValuesGARCH["llvalue"] <- garch_fit$value
+       }
+       
+       if (gjr_fit$value < bestValuesGJRGARCH["llvalue"]) {
+         bestValuesGJRGARCH["omega"] <- gjr_fit$par["omega"]
+         bestValuesGJRGARCH["alpha1"] <- gjr_fit$par["alpha1"]
+         bestValuesGJRGARCH["alpha2"] <- gjr_fit$par["alpha2"]
+         bestValuesGJRGARCH["beta"] <- gjr_fit$par["beta"]
+         bestValuesGJRGARCH["llvalue"] <- gjr_fit$value
+       }
+       
+       num <- num + 1
+       
+       print(paste("Iterations completed: ", num))
+    }  
+   }
+  }
+}
+
+print("For Garch:")
+
+garch_fit$par
+garch_fit$value
+garch_fit$convergence
+
+print("For GJR Garch:")
+
+garch_fit$par
+garch_fit$value
+garch_fit$convergence
+
+
+
 AIC_GARCH    <- 2*3 + 2*garch_fit$value      # 3 params
 AIC_GJR      <- 2*4 + 2*gjr_fit$value        # 4 params
 AIC_RTGARCH  <- 2*4 + 2*RTgarch_fit$value    # 4 params
