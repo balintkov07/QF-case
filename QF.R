@@ -484,6 +484,3 @@ print(c(GARCH    = AIC_GARCH,
         RT_GJR   = AIC_RTgjr))
 
 
-#Forza Inter, Juve merda
-
-
