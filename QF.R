@@ -40,6 +40,8 @@ plot(df_init$`CC Return (%)`)
 plot(df_init$`RV5_SS × 10^4`)
 plot(df_init$VIX)
 
+
+
 #Baseline summary statistics of key variables
 summary(df_init$`CC Return (%)`)
 summary(df_init$`RV5_SS × 10^4`)
@@ -52,6 +54,7 @@ print(cat(("Skewness and Kurtosis (respectively) for VIX index"), skewness(df_in
 rt <- as.numeric(df_init$`CC Return (%)`)
 mu <- mean(rt)
 T <- length(rt)
+
 
 
 garch11 <- function(par, rt, mu) {
@@ -471,8 +474,6 @@ garch_fit$par
 garch_fit$value
 garch_fit$convergence
 
-
-
 AIC_GARCH    <- 2*3 + 2*garch_fit$value      # 3 params
 AIC_GJR      <- 2*4 + 2*gjr_fit$value        # 4 params
 AIC_RTGARCH  <- 2*4 + 2*RTgarch_fit$value    # 4 params
@@ -482,6 +483,31 @@ print(c(GARCH    = AIC_GARCH,
         GJR      = AIC_GJR,
         RT_GARCH = AIC_RTGARCH,
         RT_GJR   = AIC_RTgjr))
+
+
+# ---- Variance Inspection (by groups) Red = High, Blue = Low, find a decent threshold 
+rv5 <- df_init$`RV5_SS × 10^4`
+
+group <- ifelse(rv5 < 1, "Low variance (< 1)", "High variance (> 1)")
+
+plot(
+  df_init$Date,
+  rv5,
+  col = ifelse(rv5 < 1, "blue", "red"),
+  pch = 16,
+  xlab = "Date",
+  ylab = "RV5_SS × 10^4",
+  main = "RV5 split by variance threshold"
+)
+
+abline(h = 1, lty = 2, col = "black")
+
+legend(
+  "topright",
+  legend = c("RV5 < 1", "RV5 > 1"),
+  col = c("blue", "red"),
+  pch = 16
+)
 
 
 
