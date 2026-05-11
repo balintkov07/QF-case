@@ -305,7 +305,7 @@ RTgjr_garch <- function(par, rt, mu) {
   
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
       phi1 < 0 || phi2 < 0 ||
-      beta + phi_bar + alpha_bar*(1-phi_bar) + 1.5*(alpha1*phi1+alpha2*phi2) >= 1) return(1e10)
+      beta + phi_bar >= 1) return(1e10)
   
   T <- length(rt)
   h <- numeric(T)
