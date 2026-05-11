@@ -53,7 +53,6 @@ rt <- as.numeric(df_init$`CC Return (%)`)
 mu <- mean(rt)
 T <- length(rt)
 
-#hi
 
 garch11 <- function(par, rt, mu) {
   
