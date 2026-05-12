@@ -462,15 +462,18 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
 
 print("For Garch:")
 
-garch_fit$par
-garch_fit$value
-garch_fit$convergence
+bestValuesGARCH["omega"]
+bestValuesGARCH["alpha"]
+bestValuesGARCH["beta"]
+bestValuesGARCH["llvalue"]
 
 print("For GJR Garch:")
 
-garch_fit$par
-garch_fit$value
-garch_fit$convergence
+bestValuesGJRGARCH["omega"]
+bestValuesGJRGARCH["alpha1"]
+bestValuesGJRGARCH["alpha2"]
+bestValuesGJRGARCH["beta"]
+bestValuesGJRGARCH["llvalue"]
 
 
 
