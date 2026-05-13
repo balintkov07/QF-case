@@ -396,12 +396,30 @@ bestValuesGJRGARCH <- c(omega = 0,
                      beta = 0,
                      llvalue = Inf)
 
+ValOptimG <- numeric(6^4)
+ValOptimGGJR <- numeric(6^4)
+
+OmeOptimG <- numeric(6^4)
+OmeOptimGGJR <- numeric(6^4)
+
+Alp1OptimG <- numeric(6^4)
+alp1OptimGGJR <- numeric(6^4)
+
+Alp2OptimG <- numeric(6^4)
+Alp2OptimGGJR <- numeric(6^4)
+
+AlpOptimG <- numeric(6^4)
+AlpOptimGGJR <- numeric(6^4)
+
+BetOptimG <- numeric(6^4)
+BetOptimGGJR <- numeric(6^4)
+
 num <- 0
 
-for (o in seq(from = 0.4, to=0.6, by=0.1)) {
-  for(a1 in seq(from=0, to=1, by=0.1)) {
-   for(a2 in seq(from=0, to=1, by=0.1)) {
-     for(b in seq(from=0, to=1, by=0.1)){
+for (o in seq(from = 0, to=1, by=0.2)) {
+  for(a1 in seq(from=0, to=1, by=0.2)) {
+   for(a2 in seq(from=0, to=1, by=0.2)) {
+     for(b in seq(from=0, to=1, by=0.2)){
        
        start_par <- c(
          omega = o,
@@ -437,6 +455,25 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
          upper = c(10, 1, 1, 1)
        )
        
+       
+       
+       ValOptimG[num] <- garch_fit$value
+       ValOptimGGJR[num] <- gjr_fit$value
+       
+       OmeOptimG[num] <- garch_fit$par["omega"]
+       OmeOptimGGJR[num] <- gjr_fit$par["omega"]
+       
+       alp1OptimGGJR[num] <- gjr_fit$par["alpha1"]
+       
+       Alp2OptimGGJR[num] <- gjr_fit$par["alpha2"]
+       
+       AlpOptimG[num] <- garch_fit$par["alpha"]
+       
+       BetOptimG[num] <- garch_fit$par["beta"]
+       BetOptimGGJR[num] <- gjr_fit$par["beta"]
+       
+       
+       
        if (garch_fit$value < bestValuesGARCH["llvalue"]) {
          bestValuesGARCH["omega"] <- garch_fit$par["omega"]
          bestValuesGARCH["alpha"] <- garch_fit$par["alpha"]
@@ -452,6 +489,9 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
          bestValuesGJRGARCH["llvalue"] <- gjr_fit$value
        }
        
+       
+       
+       
        num <- num + 1
        
        print(paste("Iterations completed: ", num))
@@ -459,6 +499,21 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
    }
   }
 }
+
+
+hist(ValOptimG[ValOptimG > 0])
+hist(ValOptimGGJR[ValOptimGGJR > 0])
+
+hist(OmeOptimG[OmeOptimG > 0])
+hist(OmeOptimGGJR[OmeOptimGGJR > 0])
+
+hist(alp1OptimGGJR[alp1OptimGGJR > 0])
+hist(Alp2OptimGGJR[Alp2OptimGGJR > 0])
+hist(AlpOptimG[AlpOptimG > 0])
+
+hist(BetOptimG[BetOptimG > 0])
+hist(BetOptimGGJR[BetOptimGGJR > 0])
+
 
 print("For Garch:")
 
