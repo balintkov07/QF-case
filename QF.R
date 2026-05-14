@@ -9,6 +9,8 @@ library("GGally")
 install.packages("e1071")
 library(e1071)
 
+library(tidyr)
+
 #--------------------------DATA PROCESSING --------------------------
 
 # Janek:
@@ -542,4 +544,104 @@ print(c(GARCH    = AIC_GARCH,
         RT_GARCH = AIC_RTGARCH,
         RT_GJR   = AIC_RTgjr))
 
+
+
+CompleteYear <- c()
+CompleteMonth <- c()
+CompleteDay <- c()
+
+for (month in 10:12){
+  if(month %in% c(11)){
+    for(day in 1:30){
+      CompleteYear <- c(CompleteYear, 2009)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  } else {
+    for(day in 1:31){
+      CompleteYear <- c(CompleteYear, 2009)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }
+}
+
+
+for(year in 2010:2025){
+  leap <- 0
+  
+  if(year %in% c(2010, 2016, 2020, 2024)){
+    leap <- 1
+  }
+  
+  for (month in 1:12){
+    if(month %in% c(4,6,9,11)){
+      for(day in 1:30){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    } else if (month %in% c(1,3,5,7,8,10,12)) {
+      for(day in 1:31){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+      }else{
+        for(day in 1:(28+leap)){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+        }
+      }
+    }
+}
+
+for (month in 1:3){
+  if (month %in% c(1,3)) {
+    for(day in 1:31){
+      CompleteYear <- c(CompleteYear, 2026)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }else{
+    for(day in 1:28){
+      CompleteYear <- c(CompleteYear, 2026)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }
+}
+
+CompleteMonth <-sprintf("%02d", CompleteMonth)
+CompleteDay <-sprintf("%02d", CompleteDay)
+
+
+CompleteCalender <- as.data.frame(cbind(CompleteYear, CompleteMonth, CompleteDay))
+
+
+CompleteCalender <- unite(CompleteCalender,"Date" ,CompleteYear, CompleteMonth, CompleteDay, sep = "-")
+
+DayInData <- integer(nrow(CompleteCalender))
+AfterHoliday <- integer(nrow(CompleteCalender))
+for(i in 1:nrow(CompleteCalender)){
+  DayInData[i] <- ifelse(CompleteCalender$Date[i] %in% substring(df_init$Date,1,10), 1, 0)
+  if (i > 1) {
+    if (DayInData[i] == 1 & DayInData[i-1] == 0) {
+      AfterHoliday[i] <- 1
+    }
+  }
+}
+
+CompleteCalender$DayInData <- DayInData
+CompleteCalender$AfterHoliday <- AfterHoliday
+
+DummyAfterHoliday <- integer(T)
+
+for(i in 1:T) {
+  if(substring(df_init$Date,1,10)[i] %in% CompleteCalender$Date){
+    DummyAfterHoliday[i] <- CompleteCalender[CompleteCalender$Date == substring(df_init$Date,1,10)[i], 3]
+  }
+}
+df_init$DummyAfterHoliday <- DummyAfterHoliday
 
