@@ -18,7 +18,10 @@ library(e1071)
 #df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+#setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+
+#Filip
+df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
 
@@ -488,3 +491,397 @@ print(c(GARCH    = AIC_GARCH,
         RT_GJR   = AIC_RTgjr))
 
 
+#--------------------------h_t PLOTTING ---------------------------------------
+
+#GARCH recursion
+
+h_1 <- numeric(T)
+h_1[1] <- var(rt)
+
+omega <- garch_fit$par[1]
+alpha <- garch_fit$par[2]
+beta <- garch_fit$par[3]
+
+for (t in 1:(T - 1)) {
+  h_1[t + 1] <- omega + alpha*(rt[t] - mu)^2 + beta*h_1[t]
+}
+
+
+#GARCH-GJR recursion
+
+h_garch <- numeric(T)
+h_garch[1] <- var(rt)
+
+omega <- gjr_fit$par[1]
+alpha1 <- gjr_fit$par[2]
+alpha2 <- gjr_fit$par[3]
+beta <- gjr_fit$par[4]
+
+shock <- rt - mu
+
+for (t in 1:(T - 1)) {
+  
+  indicator <- ifelse(shock[t] < 0, 1, 0)
+  
+  h_garch[t+1] <- omega +
+    alpha1 * indicator * shock[t]^2 +        # alpha1 when negative
+    alpha2 * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
+    beta * h_garch[t]
+}
+
+
+#RT-GARCH recursion
+
+h_htgarch <- numeric(T)
+g__htgarch <- numeric(T)
+
+omega <- RTgarch_fit$par[1]
+alpha <- RTgarch_fit$par[2]
+beta <- RTgarch_fit$par[3]
+psi <- RTgarch_fit$par[4]
+
+h_htgarch[1] <- omega / (1 - beta - psi)
+
+for (t in 1:(T - 1)) {
+  h_htgarch[t + 1] <- 0.5*(omega + beta*h_htgarch[t] + alpha*(rt[t] - mu)^2) + 0.5*sqrt((omega + beta*h_htgarch[t] + alpha*(rt[t] - mu)^2)^2 + 4*psi*h_htgarch[t]*(rt[t+1] - mu)^2)
+  g__htgarch[t] <- omega + beta*h_htgarch[t] + alpha*(rt[t] - mu)^2
+}
+
+#RT-GARCH-GJR recursion
+
+h_htgarchgrj <- numeric(T)
+g_htgarchgrj <- numeric(T)
+
+omega  <- RTgjr_fit$par[1]
+alpha1 <- RTgjr_fit$par[2]
+alpha2 <- RTgjr_fit$par[3]
+beta   <- RTgjr_fit$par[4]
+phi1   <- RTgjr_fit$par[5]
+phi2   <- RTgjr_fit$par[6]
+
+phi_bar   <- (phi1 + phi2) / 2
+alpha_bar <- (alpha1 + alpha2) / 2
+
+h_htgarchgrj[1] <- omega / (1 - beta - phi_bar)
+
+for (t in 1:(T-1)) {
+  alpha_t <- ifelse(rt[t]   <= mu, alpha1, alpha2)
+  phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
+  g_t     <- omega + beta*h_htgarchgrj[t] + alpha_t*(rt[t]-mu)^2
+  h_htgarchgrj[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h_htgarchgrj[t]*(rt[t+1]-mu)^2)
+  g__htgarchgrj[t] <- g_t
+}
+
+#actual plots
+
+plot(h_1)
+plot(h_garch)
+plot(h_htgarch)
+plot(h_htgarchgrj)
+
+#------------------------------------------ESTIMATION/EVALUATION SPLIT---------------------------------------
+
+#Define the Estimation Split
+df_init$Date <- as.Date(df_init$Date) 
+T_est <- which(df_init$Date == as.Date("2019-12-31"))
+if(length(T_est) == 0) T_est <- max(which(df_init$Date <= as.Date("2019-12-31")))
+rt_est <- rt[1:T_est]
+mu_est <- mean(rt_est)
+
+#Reestimate GARCH
+garche_est_fit <- optim(
+  par = start_par,
+  fn = garch11,
+  rt = rt_est,
+  mu = mu_est,
+  method = "L-BFGS-B",
+  lower = c(1e-8, 0, 0),
+  upper = c(Inf, 1, 1)
+)
+
+#Reestimate GJR-GARCH
+gjr_est_fit <- optim(
+  par = start_par_gjr,
+  fn = garch_gjr,
+  rt = rt_est,
+  mu = mu_est,
+  method = "L-BFGS-B",
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(10, 1, 1, 1)
+)
+
+#Reestimate RT-GARCH
+RTgarch_est_fit <- optim(
+  par = start_par_RT,
+  fn = RTgarch11,
+  rt = rt_est,
+  mu = mu_est,
+  method = "L-BFGS-B",
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+#Reestimate RT-GJR-GARCH
+RTgjr_est_fit <- optim(
+  par  = start_par_RTgjr,
+  fn   = RTgjr_garch,
+  rt   = rt_est,
+  mu   = mu_est,
+  method  = "L-BFGS-B",
+  lower   = c(1e-8, 0, 1e-8, 0, 0, 1e-8),
+  upper   = c(Inf,  1, 1,    1, 1, 1),
+  control = list(maxit = 1000)
+)
+
+#------------------------RECURSIONS FOR ESTIMATION-----------------------------------------------------------
+
+#GARCH recursion
+
+h_1 <- numeric(T)
+h_1[1] <- var(rt_est)
+
+omega <- garch_est_fit$par[1]
+alpha <- garch_est_fit$par[2]
+beta <- garch_est_fit$par[3]
+
+for (t in 1:(T - 1)) {
+  h_1[t + 1] <- omega + alpha*(rt[t] - mu_est)^2 + beta*h_1[t]
+}
+
+
+#GARCH-GJR recursion
+
+h_garch <- numeric(T)
+h_garch[1] <- var(rt_est)
+
+omega <- gjr_est_fit$par[1]
+alpha1 <- gjr_est_fit$par[2]
+alpha2 <- gjr_est_fit$par[3]
+beta <- gjr_est_fit$par[4]
+
+shock <- rt - mu_est
+
+for (t in 1:(T - 1)) {
+  
+  indicator <- ifelse(shock[t] < 0, 1, 0)
+  
+  h_garch[t+1] <- omega +
+    alpha1 * indicator * shock[t]^2 +        # alpha1 when negative
+    alpha2 * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
+    beta * h_garch[t]
+}
+
+
+#RT-GARCH recursion
+
+h_htgarch <- numeric(T)
+g_htgarch <- numeric(T)
+
+omega <- RTgarch_est_fit$par[1]
+alpha <- RTgarch_est_fit$par[2]
+beta <- RTgarch_est_fit$par[3]
+psi <- RTgarch_est_fit$par[4]
+
+h_htgarch[1] <- omega / (1 - beta - psi)
+
+for (t in 1:(T - 1)) {
+  h_htgarch[t + 1] <- 0.5*(omega + beta*h_htgarch[t] + alpha*(rt[t] - mu_est)^2) + 0.5*sqrt((omega + beta*h_htgarch[t] + alpha*(rt[t] - mu_est)^2)^2 + 4*psi*h_htgarch[t]*(rt[t+1] - mu_est)^2)
+  g_htgarch[t] <- omega + beta*h_htgarch[t] + alpha*(rt[t] - mu_est)^2
+}
+
+#RT-GARCH-GJR recursion
+
+h_htgarchgjr <- numeric(T)
+g_htgarchgjr <- numeric(T)
+
+omega  <- RTgjr_est_fit$par[1]
+alpha1 <- RTgjr_est_fit$par[2]
+alpha2 <- RTgjr_est_fit$par[3]
+beta   <- RTgjr_est_fit$par[4]
+phi1   <- RTgjr_est_fit$par[5]
+phi2   <- RTgjr_est_fit$par[6]
+
+phi_bar   <- (phi1 + phi2) / 2
+alpha_bar <- (alpha1 + alpha2) / 2
+
+h_htgarchgjr[1] <- omega / (1 - beta - phi_bar)
+
+for (t in 1:(T-1)) {
+  alpha_t <- ifelse(rt[t]   <= mu_est, alpha1, alpha2)
+  phi_t   <- ifelse(rt[t+1] <= mu_est, phi1,   phi2)
+  g_t     <- omega + beta*h_htgarchgjr[t] + alpha_t*(rt[t]-mu_est)^2
+  h_htgarchgjr[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h_htgarchgjr[t]*(rt[t+1]-mu_est)^2)
+  g_htgarchgjr[t] <- g_t
+}
+
+
+
+
+#-----------------------------------------TARGET VALUES-----------------------------------------------------
+
+num_forecast <- T - T_est
+
+# Demeaned squared return
+TV_r <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)){
+  TV_r[indx] <- (rt[t+1] - mu_est)^2
+  indx <- indx + 1
+}
+
+#Realised variance 
+TV_rv <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)){
+  TV_rv[indx] <- df_init$`RV5_SS × 10^4`[t + 1]
+  indx <- indx + 1
+}
+
+
+
+#-----------PREDICTED VALUES-----------------------------------------------
+
+#one-day GARCH forecast
+PV_GARCH <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_GARCH[indx] <- h_1[t + 1]
+  indx <- indx + 1
+}
+
+#one-day GARCH-GJR forecast
+PV_GARCHGJR <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_GARCHGJR[indx] <- h_garch[t + 1]
+  indx <- indx + 1
+}
+
+#one-day RT-GARCH forecast
+PV_RTGARCH <- numeric(num_forecast)
+kurtosis <- 3
+psi <- RTgarch_est_fit$par[4]
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_RTGARCH[indx] <- g_htgarch[t] + h_htgarch[t] * kurtosis * psi
+  indx <- indx + 1
+  
+}
+
+#one-day RT-GARCH_GJR forecast
+PV_RTGARCHGJR <- numeric(num_forecast)
+kurtosis <- 3
+phi1   <- RTgjr_est_fit$par[5]
+phi2   <- RTgjr_est_fit$par[6]
+phi_bar   <- (phi1 + phi2) / 2
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_RTGARCHGJR[indx] <- g_htgarchgjr[t] + h_htgarchgjr[t] * kurtosis * phi_bar
+  indx <- indx + 1
+  
+}
+
+
+#one-day VIX forecast
+PV_VIX <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_VIX[indx] <- (df_init$VIX[t])^2 / 250
+  indx <- indx + 1
+}
+
+#HAR-RV forecast
+RV_day <- numeric(T)
+RV_week <- numeric(T)
+RV_month <- numeric(T)
+
+for (t in 1:T){
+  RV_day[t] <- df_init$`RV5_SS × 10^4`[t]
+  if (t > 4){
+    RV_week[t] <- sum(RV_day[(t-4):t]) / 5
+  }
+  if (t > 20){
+    RV_month[t] <- sum(RV_day[(t-20):t]) / 21
+  }
+}
+
+PV_HAR_RV <- numeric(num_forecast)
+PV_HAR_R  <- numeric(num_forecast)
+
+RV_d_est <- RV_day[21:(T_est - 1)]
+RV_w_est <- RV_week[21:(T_est - 1)]
+RV_m_est <- RV_month[21:(T_est - 1)]
+
+TV_rv_est <- RV_day[22:T_est]
+TV_r_est  <- (rt[22:T_est] - mu_est)^2
+
+har_data <- data.frame(RV_d_est,RV_w_est, RV_m_est, TV_rv_est, TV_r_est)
+
+model_rv <- lm(TV_rv_est ~ RV_d_est + RV_w_est + RV_m_est, data = har_data)
+model_r <- lm(TV_r_est ~ RV_d_est + RV_w_est + RV_m_est, data = har_data)
+
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_HAR_RV[indx] <- coef(model_rv)[1] + coef(model_rv)[2]*RV_day[t] + coef(model_rv)[3]*RV_week[t] + coef(model_rv)[4]*RV_month[t]
+  PV_HAR_R[indx] <- coef(model_r)[1] + coef(model_r)[2]*RV_day[t] + coef(model_r)[3]*RV_week[t] + coef(model_r)[4]*RV_month[t]
+  indx <- indx + 1
+}
+
+#-------------------------------LOSS FUNCTIONS----------------------------------------
+
+#For cases when forecasts are nonpositive 
+safety_val <- 1e-10
+PV_HAR_RV[PV_HAR_RV <= 0] <- safety_val
+PV_HAR_R[PV_HAR_R <= 0] <- safety_val
+PV_GARCH[PV_GARCH <= 0] <- safety_val
+PV_GARCHGJR[PV_GARCHGJR <= 0] <- safety_val
+PV_RTGARCH[PV_RTGARCH <= 0] <- safety_val
+PV_RTGARCHGJR[PV_RTGARCHGJR <= 0] <- safety_val
+PV_VIX[PV_VIX <= 0] <- safety_val
+
+#Loss function calculations
+calc_losses <- function(PV, TV) {
+  evaluation_size <- length(PV)
+  
+  # Mean Squared Error
+  mse <- (1/evaluation_size) * sum((TV - PV)^2)
+  
+  # QLIKE Loss
+  qlike <- (1/evaluation_size) * sum(log(PV) + (TV / PV))
+  
+  return(c(MSE = mse, QLIKE = qlike))
+}
+
+
+# List of all predicted values
+predictions <- list(
+  GARCH = PV_GARCH,
+  GJR_GARCH = PV_GARCHGJR,
+  RT_GARCH = PV_RTGARCH,
+  RT_GJR = PV_RTGARCHGJR,
+  VIX = PV_VIX,
+  HAR = PV_HAR_RV
+)
+
+
+loss_rv <- sapply(predictions, function(p) calc_losses(p, TV_rv))
+preds$HAR <- PV_HAR_R 
+loss_r <- sapply(predictions, function(p) calc_losses(p, TV_r))
+
+
+final_results <- rbind(
+  Target_RV_MSE   = loss_rv["MSE", ],
+  Target_RV_QLIKE = loss_rv["QLIKE", ],
+  Target_R_MSE    = loss_r["MSE", ],
+  Target_R_QLIKE  = loss_r["QLIKE", ]
+)
+
+print(round(final_results, 6))
