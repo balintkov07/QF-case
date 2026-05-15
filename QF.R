@@ -645,3 +645,92 @@ for(i in 1:T) {
 }
 df_init$DummyAfterHoliday <- DummyAfterHoliday
 
+
+lengthOfHolidays <- c()
+k <- 0
+
+
+for(i in 3:nrow(CompleteCalender)){
+  if(CompleteCalender$DayInData[i] == 0){
+    k <- k + 1
+  } else if(CompleteCalender$DayInData[i] == 1 & 
+            CompleteCalender$DayInData[i-1] == 0) {
+    lengthOfHolidays <- c(lengthOfHolidays, k)
+    k <- 0
+  } else{
+    k <- 0
+  }
+}
+
+DummyRTgarch11 <- function(par, rt, mu, DUM) {
+  omega <- par[1]
+  alpha <- par[2]
+  beta  <- par[3]
+  psi <- par[4]
+  delta <- par[5]
+  
+  # Penalize invalid parameter values
+  if (omega <= 0 || alpha < 0 || beta < 0 || psi < 0 || beta + psi >= 1) {
+    return(1e10)
+  }
+  
+  T <- length(rt)
+  h <- numeric(T)
+  
+  # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+  h[1] <- omega / (1 - beta - psi)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) {
+    return(1e10)
+  }
+  
+  # Generate conditional variances recursively
+  for (t in 1:(T - 1)) {
+    h[t + 1] <- 0.5*(omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t])^2) + 0.5*sqrt((omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t+1])^2)^2 + 4*psi*h[t]*(rt[t+1] - mu - delta*DUM[t+1])^2)
+  }
+  
+  # Now check h after it has been generated
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
+    return(1e10)
+  }
+  
+  
+  h_tm1 <- h[-T]
+  h <- h[-1]
+  rt <- rt[-1]
+  DUM <- DUM[-1]
+  
+  # Negative log-likelihood
+  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu-delta*DUM)^2/h-log(sqrt(h)/(h+psi*h_tm1*(rt-mu)^2/h)))
+  
+  
+  if (!is.finite(RTgarch11ll)) {
+    return(1e10)
+  }
+  
+  return(RTgarch11ll)
+}
+
+start_par_RT <- c(
+  omega = 0.04590705,
+  alpha = 0.19226977 ,
+  beta  = 0.77380626 ,
+  psi = 0.01,
+  delta = 0.01
+)
+
+DummyRTgarch_fit <- optim(
+  par = start_par_RT,
+  fn = DummyRTgarch11,
+  rt = rt,
+  mu = mu,
+  DUM = DummyAfterHoliday,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+DummyRTgarch_fit$par
+DummyRTgarch_fit$value
+DummyRTgarch_fit$convergence
