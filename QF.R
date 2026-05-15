@@ -9,6 +9,8 @@ library("GGally")
 install.packages("e1071")
 library(e1071)
 
+library(tidyr)
+
 #--------------------------DATA PROCESSING --------------------------
 
 # Janek:
@@ -399,12 +401,30 @@ bestValuesGJRGARCH <- c(omega = 0,
                      beta = 0,
                      llvalue = Inf)
 
+ValOptimG <- numeric(6^4)
+ValOptimGGJR <- numeric(6^4)
+
+OmeOptimG <- numeric(6^4)
+OmeOptimGGJR <- numeric(6^4)
+
+Alp1OptimG <- numeric(6^4)
+alp1OptimGGJR <- numeric(6^4)
+
+Alp2OptimG <- numeric(6^4)
+Alp2OptimGGJR <- numeric(6^4)
+
+AlpOptimG <- numeric(6^4)
+AlpOptimGGJR <- numeric(6^4)
+
+BetOptimG <- numeric(6^4)
+BetOptimGGJR <- numeric(6^4)
+
 num <- 0
 
-for (o in seq(from = 0.4, to=0.6, by=0.1)) {
-  for(a1 in seq(from=0, to=1, by=0.1)) {
-   for(a2 in seq(from=0, to=1, by=0.1)) {
-     for(b in seq(from=0, to=1, by=0.1)){
+for (o in seq(from = 0, to=1, by=0.2)) {
+  for(a1 in seq(from=0, to=1, by=0.2)) {
+   for(a2 in seq(from=0, to=1, by=0.2)) {
+     for(b in seq(from=0, to=1, by=0.2)){
        
        start_par <- c(
          omega = o,
@@ -440,6 +460,25 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
          upper = c(10, 1, 1, 1)
        )
        
+       
+       
+       ValOptimG[num] <- garch_fit$value
+       ValOptimGGJR[num] <- gjr_fit$value
+       
+       OmeOptimG[num] <- garch_fit$par["omega"]
+       OmeOptimGGJR[num] <- gjr_fit$par["omega"]
+       
+       alp1OptimGGJR[num] <- gjr_fit$par["alpha1"]
+       
+       Alp2OptimGGJR[num] <- gjr_fit$par["alpha2"]
+       
+       AlpOptimG[num] <- garch_fit$par["alpha"]
+       
+       BetOptimG[num] <- garch_fit$par["beta"]
+       BetOptimGGJR[num] <- gjr_fit$par["beta"]
+       
+       
+       
        if (garch_fit$value < bestValuesGARCH["llvalue"]) {
          bestValuesGARCH["omega"] <- garch_fit$par["omega"]
          bestValuesGARCH["alpha"] <- garch_fit$par["alpha"]
@@ -455,6 +494,9 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
          bestValuesGJRGARCH["llvalue"] <- gjr_fit$value
        }
        
+       
+       
+       
        num <- num + 1
        
        print(paste("Iterations completed: ", num))
@@ -462,6 +504,21 @@ for (o in seq(from = 0.4, to=0.6, by=0.1)) {
    }
   }
 }
+
+
+hist(ValOptimG[ValOptimG > 0])
+hist(ValOptimGGJR[ValOptimGGJR > 0])
+
+hist(OmeOptimG[OmeOptimG > 0])
+hist(OmeOptimGGJR[OmeOptimGGJR > 0])
+
+hist(alp1OptimGGJR[alp1OptimGGJR > 0])
+hist(Alp2OptimGGJR[Alp2OptimGGJR > 0])
+hist(AlpOptimG[AlpOptimG > 0])
+
+hist(BetOptimG[BetOptimG > 0])
+hist(BetOptimGGJR[BetOptimGGJR > 0])
+
 
 print("For Garch:")
 
@@ -490,6 +547,197 @@ print(c(GARCH    = AIC_GARCH,
         RT_GARCH = AIC_RTGARCH,
         RT_GJR   = AIC_RTgjr))
 
+#--------------------------MARKET BREAK DUMMIES-----------------------------------
+
+
+CompleteYear <- c()
+CompleteMonth <- c()
+CompleteDay <- c()
+
+for (month in 10:12){
+  if(month %in% c(11)){
+    for(day in 1:30){
+      CompleteYear <- c(CompleteYear, 2009)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  } else {
+    for(day in 1:31){
+      CompleteYear <- c(CompleteYear, 2009)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }
+}
+
+
+for(year in 2010:2025){
+  leap <- 0
+  
+  if(year %in% c(2010, 2016, 2020, 2024)){
+    leap <- 1
+  }
+  
+  for (month in 1:12){
+    if(month %in% c(4,6,9,11)){
+      for(day in 1:30){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    } else if (month %in% c(1,3,5,7,8,10,12)) {
+      for(day in 1:31){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    }else{
+      for(day in 1:(28+leap)){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    }
+  }
+}
+
+for (month in 1:3){
+  if (month %in% c(1,3)) {
+    for(day in 1:31){
+      CompleteYear <- c(CompleteYear, 2026)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }else{
+    for(day in 1:28){
+      CompleteYear <- c(CompleteYear, 2026)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }
+}
+
+CompleteMonth <-sprintf("%02d", CompleteMonth)
+CompleteDay <-sprintf("%02d", CompleteDay)
+
+
+CompleteCalender <- as.data.frame(cbind(CompleteYear, CompleteMonth, CompleteDay))
+
+
+CompleteCalender <- unite(CompleteCalender,"Date" ,CompleteYear, CompleteMonth, CompleteDay, sep = "-")
+
+DayInData <- integer(nrow(CompleteCalender))
+AfterHoliday <- integer(nrow(CompleteCalender))
+for(i in 1:nrow(CompleteCalender)){
+  DayInData[i] <- ifelse(CompleteCalender$Date[i] %in% substring(df_init$Date,1,10), 1, 0)
+  if (i > 1) {
+    if (DayInData[i] == 1 & DayInData[i-1] == 0) {
+      AfterHoliday[i] <- 1
+    }
+  }
+}
+
+CompleteCalender$DayInData <- DayInData
+CompleteCalender$AfterHoliday <- AfterHoliday
+
+DummyAfterHoliday <- integer(T)
+
+for(i in 1:T) {
+  if(substring(df_init$Date,1,10)[i] %in% CompleteCalender$Date){
+    DummyAfterHoliday[i] <- CompleteCalender[CompleteCalender$Date == substring(df_init$Date,1,10)[i], 3]
+  }
+}
+df_init$DummyAfterHoliday <- DummyAfterHoliday
+
+
+lengthOfHolidays <- c()
+k <- 0
+
+
+for(i in 3:nrow(CompleteCalender)){
+  if(CompleteCalender$DayInData[i] == 0){
+    k <- k + 1
+  } else if(CompleteCalender$DayInData[i] == 1 & 
+            CompleteCalender$DayInData[i-1] == 0) {
+    lengthOfHolidays <- c(lengthOfHolidays, k)
+    k <- 0
+  } else{
+    k <- 0
+  }
+}
+
+DummyRTgarch11 <- function(par, rt, mu, DUM) {
+  omega <- par[1]
+  alpha <- par[2]
+  beta  <- par[3]
+  psi <- par[4]
+  delta <- par[5]
+  
+  # Penalize invalid parameter values
+  if (omega <= 0 || alpha < 0 || beta < 0 || psi < 0 || beta + psi >= 1) {
+    return(1e10)
+  }
+  
+  T <- length(rt)
+  h <- numeric(T)
+  
+  # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+  h[1] <- omega / (1 - beta - psi)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) {
+    return(1e10)
+  }
+  
+  # Generate conditional variances recursively
+  for (t in 1:(T - 1)) {
+    h[t + 1] <- 0.5*(omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t])^2) + 0.5*sqrt((omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t+1])^2)^2 + 4*psi*h[t]*(rt[t+1] - mu - delta*DUM[t+1])^2)
+  }
+  
+  # Now check h after it has been generated
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
+    return(1e10)
+  }
+  
+  
+  h_tm1 <- h[-T]
+  h <- h[-1]
+  rt <- rt[-1]
+  DUM <- DUM[-1]
+  
+  # Negative log-likelihood
+  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu-delta*DUM)^2/h-log(sqrt(h)/(h+psi*h_tm1*(rt-mu)^2/h)))
+  
+  
+  if (!is.finite(RTgarch11ll)) {
+    return(1e10)
+  }
+  
+  return(RTgarch11ll)
+}
+
+start_par_RT <- c(
+  omega = 0.04590705,
+  alpha = 0.19226977 ,
+  beta  = 0.77380626 ,
+  psi = 0.01,
+  delta = 0.01
+)
+
+DummyRTgarch_fit <- optim(
+  par = start_par_RT,
+  fn = DummyRTgarch11,
+  rt = rt,
+  mu = mu,
+  DUM = DummyAfterHoliday,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+DummyRTgarch_fit$par
+DummyRTgarch_fit$value
+DummyRTgarch_fit$convergence
 
 #--------------------------h_t PLOTTING ---------------------------------------
 
@@ -617,9 +865,12 @@ RTgarch_est_fit <- optim(
   rt = rt_est,
   mu = mu_est,
   method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
   lower = c(1e-8, 0, 0, 0),
   upper = c(Inf, 1, 1, 1)
 )
+
+
 
 #Reestimate RT-GJR-GARCH
 RTgjr_est_fit <- optim(
