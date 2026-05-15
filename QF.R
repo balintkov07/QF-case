@@ -827,6 +827,48 @@ plot(h_garch)
 plot(h_htgarch)
 plot(h_htgarchgrj)
 
+# 1. Global Y-limit for consistency
+y_limit <- c(0, max(c(h_1, h_garch, h_htgarch, h_htgarchgrj), na.rm = TRUE))
+
+# 2. Define Period 1
+period1 <- 400:600
+
+# 3. Plotting Grid 1 (Period 1)
+par(mfrow = c(2, 2))
+
+plot(period1, h_1[period1], type = "l", col = "blue", ylim = y_limit,
+     main = "GARCH (400-600)", xlab = "Time", ylab = "h_t")
+
+plot(period1, h_garch[period1], type = "l", col = "red", ylim = y_limit,
+     main = "GARCH-GJR (400-600)", xlab = "Time", ylab = "h_t")
+
+plot(period1, h_htgarch[period1], type = "l", col = "darkgreen", ylim = y_limit,
+     main = "RT-GARCH (400-600)", xlab = "Time", ylab = "h_t")
+
+plot(period1, h_htgarchgrj[period1], type = "l", col = "purple", ylim = y_limit,
+     main = "RT-GARCH-GJR (400-600)", xlab = "Time", ylab = "h_t")
+
+par(mfrow = c(1, 1)) # Reset
+
+# 4. Define Period 2
+period2 <- 2000:3000
+
+# 5. Plotting Grid 2 (Period 2)
+par(mfrow = c(2, 2))
+
+plot(period2, h_1[period2], type = "l", col = "blue", ylim = y_limit,
+     main = "GARCH (2000-3000)", xlab = "Time", ylab = "h_t")
+
+plot(period2, h_garch[period2], type = "l", col = "red", ylim = y_limit,
+     main = "GARCH-GJR (2000-3000)", xlab = "Time", ylab = "h_t")
+
+plot(period2, h_htgarch[period2], type = "l", col = "darkgreen", ylim = y_limit,
+     main = "RT-GARCH (2000-3000)", xlab = "Time", ylab = "h_t")
+
+plot(period2, h_htgarchgrj[period2], type = "l", col = "purple", ylim = y_limit,
+     main = "RT-GARCH-GJR (2000-3000)", xlab = "Time", ylab = "h_t")
+
+par(mfrow = c(1, 1)) # Reset
 #------------------------------------------ESTIMATION/EVALUATION SPLIT---------------------------------------
 
 #Define the Estimation Split
