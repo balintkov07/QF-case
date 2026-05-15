@@ -817,7 +817,7 @@ for (t in 1:(T-1)) {
   phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
   g_t     <- omega + beta*h_htgarchgrj[t] + alpha_t*(rt[t]-mu)^2
   h_htgarchgrj[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h_htgarchgrj[t]*(rt[t+1]-mu)^2)
-  g__htgarchgrj[t] <- g_t
+  g_htgarchgrj[t] <- g_t
 }
 
 #actual plots
@@ -837,7 +837,7 @@ rt_est <- rt[1:T_est]
 mu_est <- mean(rt_est)
 
 #Reestimate GARCH
-garche_est_fit <- optim(
+garch_est_fit <- optim(
   par = start_par,
   fn = garch11,
   rt = rt_est,
@@ -1124,7 +1124,7 @@ predictions <- list(
 
 
 loss_rv <- sapply(predictions, function(p) calc_losses(p, TV_rv))
-preds$HAR <- PV_HAR_R 
+predictions$HAR <- PV_HAR_R 
 loss_r <- sapply(predictions, function(p) calc_losses(p, TV_r))
 
 
