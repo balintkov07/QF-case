@@ -666,6 +666,27 @@ for(i in 3:nrow(CompleteCalender)){
   }
 }
 
+AllPrices <- c()
+
+for(i in 1:4178){
+  AllPrices <- c(AllPrices, df_init$Open[i])
+  AllPrices <- c(AllPrices, df_init$Close[i])
+}
+
+OpenMarketReturns <- 0
+CloseMarketReturns <- 0
+
+for(i in 2:length(AllPrices)){
+  k <- AllPrices[i] - AllPrices[i-1]
+  if((i %% 2) == 0){
+    OpenMarketReturns <- OpenMarketReturns + k
+  } else {
+    CloseMarketReturns <- CloseMarketReturns + k
+  }
+}
+
+OO_rt <- as.numeric(100*log(df_init$Open[-1]/df_init$Open[-T]))
+
 DummyRTgarch11 <- function(par, rt, mu, DUM) {
   omega <- par[1]
   alpha <- par[2]
@@ -682,7 +703,7 @@ DummyRTgarch11 <- function(par, rt, mu, DUM) {
   h <- numeric(T)
   
   # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
-  h[1] <- omega / (1 - beta - psi)
+  h[1] <- (omega+mean(DUM)) / (1 - beta - psi)
   
   if (!is.finite(h[1]) || h[1] <= 0) {
     return(1e10)
@@ -690,7 +711,7 @@ DummyRTgarch11 <- function(par, rt, mu, DUM) {
   
   # Generate conditional variances recursively
   for (t in 1:(T - 1)) {
-    h[t + 1] <- 0.5*(omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t])^2) + 0.5*sqrt((omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t+1])^2)^2 + 4*psi*h[t]*(rt[t+1] - mu - delta*DUM[t+1])^2)
+    h[t + 1] <- 0.5*(omega + delta*DUM[t+1] + beta*h[t] + alpha*(rt[t] - mu)^2) + 0.5*sqrt((omega + delta*DUM[t+1] + beta*h[t] + alpha*(rt[t] - mu)^2)^2 + 4*psi*h[t]*(rt[t+1] - mu)^2)
   }
   
   # Now check h after it has been generated
@@ -705,7 +726,7 @@ DummyRTgarch11 <- function(par, rt, mu, DUM) {
   DUM <- DUM[-1]
   
   # Negative log-likelihood
-  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu-delta*DUM)^2/h-log(sqrt(h)/(h+psi*h_tm1*(rt-mu)^2/h)))
+  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu)^2/h-log(sqrt(h)/(h+psi*h_tm1*(rt-mu)^2/h)))
   
   
   if (!is.finite(RTgarch11ll)) {
@@ -715,7 +736,7 @@ DummyRTgarch11 <- function(par, rt, mu, DUM) {
   return(RTgarch11ll)
 }
 
-start_par_RT <- c(
+start_par_RT_DUM <- c(
   omega = 0.04590705,
   alpha = 0.19226977 ,
   beta  = 0.77380626 ,
@@ -724,9 +745,9 @@ start_par_RT <- c(
 )
 
 DummyRTgarch_fit <- optim(
-  par = start_par_RT,
+  par = start_par_RT_DUM,
   fn = DummyRTgarch11,
-  rt = rt,
+  rt = OO_rt,
   mu = mu,
   DUM = DummyAfterHoliday,
   method = "L-BFGS-B",
@@ -735,9 +756,36 @@ DummyRTgarch_fit <- optim(
   upper = c(Inf, 1, 1, 1)
 )
 
+start_par_RT <- c(
+  omega = 0.04590705,
+  alpha = 0.19226977 ,
+  beta  = 0.77380626 ,
+  psi = 0.01
+)
+
+
+NonDummyRTgarch_fit <- optim(
+  par = start_par_RT,
+  fn = RTgarch11,
+  rt = OO_rt,
+  mu = mu,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0),
+  upper = c(Inf, 1, 1)
+)
+
 DummyRTgarch_fit$par
 DummyRTgarch_fit$value
 DummyRTgarch_fit$convergence
+
+NonDummyRTgarch_fit$par
+NonDummyRTgarch_fit$value
+NonDummyRTgarch_fit$convergence
+
+
+
+
 
 #--------------------------h_t PLOTTING ---------------------------------------
 
