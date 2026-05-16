@@ -9,19 +9,25 @@ library("GGally")
 install.packages("e1071")
 library(e1071)
 
+library(tidyr)
+
 #--------------------------DATA PROCESSING --------------------------
 
 # Janek:
 # df_init <- read_excel("/Users/janekczajnik/Desktop/Erasmus/B3/Introductory Seminar CS/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Balint
-df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+#df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-# setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+#setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+
+#Filip
+df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
-# df_init <- read_excel("data.xlsx")[-1, ]
+
+df_init <- read_excel("data.xlsx")[-1, ]
 
 #Divide the days into positive, negative or zero returns 
 df_pos <- df_init[df_init$`CC Return (%)` > 0, ]
@@ -307,7 +313,7 @@ RTgjr_garch <- function(par, rt, mu) {
   
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
       phi1 < 0 || phi2 < 0 ||
-      beta + phi_bar + alpha_bar*(1-phi_bar) + 1.5*(alpha1*phi1+alpha2*phi2) >= 1) return(1e10)
+      beta + phi_bar >= 1) return(1e10)
   
   T <- length(rt)
   h <- numeric(T)
@@ -398,12 +404,30 @@ bestValuesGJRGARCH <- c(omega = 0,
                      beta = 0,
                      llvalue = Inf)
 
+ValOptimG <- numeric(6^4)
+ValOptimGGJR <- numeric(6^4)
+
+OmeOptimG <- numeric(6^4)
+OmeOptimGGJR <- numeric(6^4)
+
+Alp1OptimG <- numeric(6^4)
+alp1OptimGGJR <- numeric(6^4)
+
+Alp2OptimG <- numeric(6^4)
+Alp2OptimGGJR <- numeric(6^4)
+
+AlpOptimG <- numeric(6^4)
+AlpOptimGGJR <- numeric(6^4)
+
+BetOptimG <- numeric(6^4)
+BetOptimGGJR <- numeric(6^4)
+
 num <- 0
 
-for (o in seq(from = 0, to=1, by=0.1)) {
-  for(a1 in seq(from=0, to=1, by=0.1)) {
-   for(a2 in seq(from=0, to=1, by=0.1)) {
-     for(b in seq(from=0, to=1, by=0.1)){
+for (o in seq(from = 0, to=1, by=0.2)) {
+  for(a1 in seq(from=0, to=1, by=0.2)) {
+   for(a2 in seq(from=0, to=1, by=0.2)) {
+     for(b in seq(from=0, to=1, by=0.2)){
        
        start_par <- c(
          omega = o,
@@ -439,6 +463,25 @@ for (o in seq(from = 0, to=1, by=0.1)) {
          upper = c(10, 1, 1, 1)
        )
        
+       
+       
+       ValOptimG[num] <- garch_fit$value
+       ValOptimGGJR[num] <- gjr_fit$value
+       
+       OmeOptimG[num] <- garch_fit$par["omega"]
+       OmeOptimGGJR[num] <- gjr_fit$par["omega"]
+       
+       alp1OptimGGJR[num] <- gjr_fit$par["alpha1"]
+       
+       Alp2OptimGGJR[num] <- gjr_fit$par["alpha2"]
+       
+       AlpOptimG[num] <- garch_fit$par["alpha"]
+       
+       BetOptimG[num] <- garch_fit$par["beta"]
+       BetOptimGGJR[num] <- gjr_fit$par["beta"]
+       
+       
+       
        if (garch_fit$value < bestValuesGARCH["llvalue"]) {
          bestValuesGARCH["omega"] <- garch_fit$par["omega"]
          bestValuesGARCH["alpha"] <- garch_fit$par["alpha"]
@@ -454,6 +497,9 @@ for (o in seq(from = 0, to=1, by=0.1)) {
          bestValuesGJRGARCH["llvalue"] <- gjr_fit$value
        }
        
+       
+       
+       
        num <- num + 1
        
        print(paste("Iterations completed: ", num))
@@ -462,17 +508,35 @@ for (o in seq(from = 0, to=1, by=0.1)) {
   }
 }
 
+
+hist(ValOptimG[ValOptimG > 0])
+hist(ValOptimGGJR[ValOptimGGJR > 0])
+
+hist(OmeOptimG[OmeOptimG > 0])
+hist(OmeOptimGGJR[OmeOptimGGJR > 0])
+
+hist(alp1OptimGGJR[alp1OptimGGJR > 0])
+hist(Alp2OptimGGJR[Alp2OptimGGJR > 0])
+hist(AlpOptimG[AlpOptimG > 0])
+
+hist(BetOptimG[BetOptimG > 0])
+hist(BetOptimGGJR[BetOptimGGJR > 0])
+
+
 print("For Garch:")
 
-garch_fit$par
-garch_fit$value
-garch_fit$convergence
+bestValuesGARCH["omega"]
+bestValuesGARCH["alpha"]
+bestValuesGARCH["beta"]
+bestValuesGARCH["llvalue"]
 
 print("For GJR Garch:")
 
-garch_fit$par
-garch_fit$value
-garch_fit$convergence
+bestValuesGJRGARCH["omega"]
+bestValuesGJRGARCH["alpha1"]
+bestValuesGJRGARCH["alpha2"]
+bestValuesGJRGARCH["beta"]
+bestValuesGJRGARCH["llvalue"]
 
 AIC_GARCH    <- 2*3 + 2*garch_fit$value      # 3 params
 AIC_GJR      <- 2*4 + 2*gjr_fit$value        # 4 params
@@ -484,6 +548,7 @@ print(c(GARCH    = AIC_GARCH,
         RT_GARCH = AIC_RTGARCH,
         RT_GJR   = AIC_RTgjr))
 
+#--------------------------MARKET BREAK DUMMIES-----------------------------------
 
 # ---- Variance Inspection (by groups) Red = High, Blue = Low, find a decent threshold 
 rv5 <- df_init$`RV5_SS × 10^4`
@@ -511,3 +576,631 @@ legend(
 
 
 
+CompleteYear <- c()
+CompleteMonth <- c()
+CompleteDay <- c()
+
+for (month in 10:12){
+  if(month %in% c(11)){
+    for(day in 1:30){
+      CompleteYear <- c(CompleteYear, 2009)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  } else {
+    for(day in 1:31){
+      CompleteYear <- c(CompleteYear, 2009)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }
+}
+
+
+for(year in 2010:2025){
+  leap <- 0
+  
+  if(year %in% c(2010, 2016, 2020, 2024)){
+    leap <- 1
+  }
+  
+  for (month in 1:12){
+    if(month %in% c(4,6,9,11)){
+      for(day in 1:30){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    } else if (month %in% c(1,3,5,7,8,10,12)) {
+      for(day in 1:31){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    }else{
+      for(day in 1:(28+leap)){
+        CompleteYear <- c(CompleteYear, year)
+        CompleteMonth <- c(CompleteMonth, month)
+        CompleteDay <- c(CompleteDay, day)
+      }
+    }
+  }
+}
+
+for (month in 1:3){
+  if (month %in% c(1,3)) {
+    for(day in 1:31){
+      CompleteYear <- c(CompleteYear, 2026)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }else{
+    for(day in 1:28){
+      CompleteYear <- c(CompleteYear, 2026)
+      CompleteMonth <- c(CompleteMonth, month)
+      CompleteDay <- c(CompleteDay, day)
+    }
+  }
+}
+
+CompleteMonth <-sprintf("%02d", CompleteMonth)
+CompleteDay <-sprintf("%02d", CompleteDay)
+
+
+CompleteCalender <- as.data.frame(cbind(CompleteYear, CompleteMonth, CompleteDay))
+
+
+CompleteCalender <- unite(CompleteCalender,"Date" ,CompleteYear, CompleteMonth, CompleteDay, sep = "-")
+
+DayInData <- integer(nrow(CompleteCalender))
+AfterHoliday <- integer(nrow(CompleteCalender))
+for(i in 1:nrow(CompleteCalender)){
+  DayInData[i] <- ifelse(CompleteCalender$Date[i] %in% substring(df_init$Date,1,10), 1, 0)
+  if (i > 1) {
+    if (DayInData[i] == 1 & DayInData[i-1] == 0) {
+      AfterHoliday[i] <- 1
+    }
+  }
+}
+
+CompleteCalender$DayInData <- DayInData
+CompleteCalender$AfterHoliday <- AfterHoliday
+
+DummyAfterHoliday <- integer(T)
+
+for(i in 1:T) {
+  if(substring(df_init$Date,1,10)[i] %in% CompleteCalender$Date){
+    DummyAfterHoliday[i] <- CompleteCalender[CompleteCalender$Date == substring(df_init$Date,1,10)[i], 3]
+  }
+}
+df_init$DummyAfterHoliday <- DummyAfterHoliday
+
+
+lengthOfHolidays <- c()
+k <- 0
+
+
+for(i in 3:nrow(CompleteCalender)){
+  if(CompleteCalender$DayInData[i] == 0){
+    k <- k + 1
+  } else if(CompleteCalender$DayInData[i] == 1 & 
+            CompleteCalender$DayInData[i-1] == 0) {
+    lengthOfHolidays <- c(lengthOfHolidays, k)
+    k <- 0
+  } else{
+    k <- 0
+  }
+}
+
+DummyRTgarch11 <- function(par, rt, mu, DUM) {
+  omega <- par[1]
+  alpha <- par[2]
+  beta  <- par[3]
+  psi <- par[4]
+  delta <- par[5]
+  
+  # Penalize invalid parameter values
+  if (omega <= 0 || alpha < 0 || beta < 0 || psi < 0 || beta + psi >= 1) {
+    return(1e10)
+  }
+  
+  T <- length(rt)
+  h <- numeric(T)
+  
+  # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+  h[1] <- omega / (1 - beta - psi)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) {
+    return(1e10)
+  }
+  
+  # Generate conditional variances recursively
+  for (t in 1:(T - 1)) {
+    h[t + 1] <- 0.5*(omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t])^2) + 0.5*sqrt((omega + beta*h[t] + alpha*(rt[t] - mu - delta*DUM[t+1])^2)^2 + 4*psi*h[t]*(rt[t+1] - mu - delta*DUM[t+1])^2)
+  }
+  
+  # Now check h after it has been generated
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
+    return(1e10)
+  }
+  
+  
+  h_tm1 <- h[-T]
+  h <- h[-1]
+  rt <- rt[-1]
+  DUM <- DUM[-1]
+  
+  # Negative log-likelihood
+  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu-delta*DUM)^2/h-log(sqrt(h)/(h+psi*h_tm1*(rt-mu)^2/h)))
+  
+  
+  if (!is.finite(RTgarch11ll)) {
+    return(1e10)
+  }
+  
+  return(RTgarch11ll)
+}
+
+start_par_RT <- c(
+  omega = 0.04590705,
+  alpha = 0.19226977 ,
+  beta  = 0.77380626 ,
+  psi = 0.01,
+  delta = 0.01
+)
+
+DummyRTgarch_fit <- optim(
+  par = start_par_RT,
+  fn = DummyRTgarch11,
+  rt = rt,
+  mu = mu,
+  DUM = DummyAfterHoliday,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+DummyRTgarch_fit$par
+DummyRTgarch_fit$value
+DummyRTgarch_fit$convergence
+
+#--------------------------h_t PLOTTING ---------------------------------------
+
+#GARCH recursion
+
+h_1 <- numeric(T)
+h_1[1] <- var(rt)
+
+omega <- garch_fit$par[1]
+alpha <- garch_fit$par[2]
+beta <- garch_fit$par[3]
+
+for (t in 1:(T - 1)) {
+  h_1[t + 1] <- omega + alpha*(rt[t] - mu)^2 + beta*h_1[t]
+}
+
+
+#GARCH-GJR recursion
+
+h_garch <- numeric(T)
+h_garch[1] <- var(rt)
+
+omega <- gjr_fit$par[1]
+alpha1 <- gjr_fit$par[2]
+alpha2 <- gjr_fit$par[3]
+beta <- gjr_fit$par[4]
+
+shock <- rt - mu
+
+for (t in 1:(T - 1)) {
+  
+  indicator <- ifelse(shock[t] < 0, 1, 0)
+  
+  h_garch[t+1] <- omega +
+    alpha1 * indicator * shock[t]^2 +        # alpha1 when negative
+    alpha2 * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
+    beta * h_garch[t]
+}
+
+
+#RT-GARCH recursion
+
+h_htgarch <- numeric(T)
+g__htgarch <- numeric(T)
+
+omega <- RTgarch_fit$par[1]
+alpha <- RTgarch_fit$par[2]
+beta <- RTgarch_fit$par[3]
+psi <- RTgarch_fit$par[4]
+
+h_htgarch[1] <- omega / (1 - beta - psi)
+
+for (t in 1:(T - 1)) {
+  h_htgarch[t + 1] <- 0.5*(omega + beta*h_htgarch[t] + alpha*(rt[t] - mu)^2) + 0.5*sqrt((omega + beta*h_htgarch[t] + alpha*(rt[t] - mu)^2)^2 + 4*psi*h_htgarch[t]*(rt[t+1] - mu)^2)
+  g__htgarch[t] <- omega + beta*h_htgarch[t] + alpha*(rt[t] - mu)^2
+}
+
+#RT-GARCH-GJR recursion
+
+h_htgarchgrj <- numeric(T)
+g_htgarchgrj <- numeric(T)
+
+omega  <- RTgjr_fit$par[1]
+alpha1 <- RTgjr_fit$par[2]
+alpha2 <- RTgjr_fit$par[3]
+beta   <- RTgjr_fit$par[4]
+phi1   <- RTgjr_fit$par[5]
+phi2   <- RTgjr_fit$par[6]
+
+phi_bar   <- (phi1 + phi2) / 2
+alpha_bar <- (alpha1 + alpha2) / 2
+
+h_htgarchgrj[1] <- omega / (1 - beta - phi_bar)
+
+for (t in 1:(T-1)) {
+  alpha_t <- ifelse(rt[t]   <= mu, alpha1, alpha2)
+  phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
+  g_t     <- omega + beta*h_htgarchgrj[t] + alpha_t*(rt[t]-mu)^2
+  h_htgarchgrj[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h_htgarchgrj[t]*(rt[t+1]-mu)^2)
+  g_htgarchgrj[t] <- g_t
+}
+
+#actual plots
+
+plot(h_1)
+plot(h_garch)
+plot(h_htgarch)
+plot(h_htgarchgrj)
+
+# 1. Global Y-limit for consistency
+y_limit <- c(0, max(c(h_1, h_garch, h_htgarch, h_htgarchgrj), na.rm = TRUE))
+
+# 2. Define Period 1
+period1 <- 400:600
+
+# 3. Plotting Grid 1 (Period 1)
+par(mfrow = c(2, 2))
+
+plot(period1, h_1[period1], type = "l", col = "blue", ylim = y_limit,
+     main = "GARCH (400-600)", xlab = "Time", ylab = "h_t")
+
+plot(period1, h_garch[period1], type = "l", col = "red", ylim = y_limit,
+     main = "GARCH-GJR (400-600)", xlab = "Time", ylab = "h_t")
+
+plot(period1, h_htgarch[period1], type = "l", col = "darkgreen", ylim = y_limit,
+     main = "RT-GARCH (400-600)", xlab = "Time", ylab = "h_t")
+
+plot(period1, h_htgarchgrj[period1], type = "l", col = "purple", ylim = y_limit,
+     main = "RT-GARCH-GJR (400-600)", xlab = "Time", ylab = "h_t")
+
+par(mfrow = c(1, 1)) # Reset
+
+# 4. Define Period 2
+period2 <- 2000:3000
+
+# 5. Plotting Grid 2 (Period 2)
+par(mfrow = c(2, 2))
+
+plot(period2, h_1[period2], type = "l", col = "blue", ylim = y_limit,
+     main = "GARCH (2000-3000)", xlab = "Time", ylab = "h_t")
+
+plot(period2, h_garch[period2], type = "l", col = "red", ylim = y_limit,
+     main = "GARCH-GJR (2000-3000)", xlab = "Time", ylab = "h_t")
+
+plot(period2, h_htgarch[period2], type = "l", col = "darkgreen", ylim = y_limit,
+     main = "RT-GARCH (2000-3000)", xlab = "Time", ylab = "h_t")
+
+plot(period2, h_htgarchgrj[period2], type = "l", col = "purple", ylim = y_limit,
+     main = "RT-GARCH-GJR (2000-3000)", xlab = "Time", ylab = "h_t")
+
+par(mfrow = c(1, 1)) # Reset
+#------------------------------------------ESTIMATION/EVALUATION SPLIT---------------------------------------
+
+#Define the Estimation Split
+df_init$Date <- as.Date(df_init$Date) 
+T_est <- which(df_init$Date == as.Date("2019-12-31"))
+if(length(T_est) == 0) T_est <- max(which(df_init$Date <= as.Date("2019-12-31")))
+rt_est <- rt[1:T_est]
+mu_est <- mean(rt_est)
+
+#Reestimate GARCH
+garch_est_fit <- optim(
+  par = start_par,
+  fn = garch11,
+  rt = rt_est,
+  mu = mu_est,
+  method = "L-BFGS-B",
+  lower = c(1e-8, 0, 0),
+  upper = c(Inf, 1, 1)
+)
+
+#Reestimate GJR-GARCH
+gjr_est_fit <- optim(
+  par = start_par_gjr,
+  fn = garch_gjr,
+  rt = rt_est,
+  mu = mu_est,
+  method = "L-BFGS-B",
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(10, 1, 1, 1)
+)
+
+#Reestimate RT-GARCH
+RTgarch_est_fit <- optim(
+  par = start_par_RT,
+  fn = RTgarch11,
+  rt = rt_est,
+  mu = mu_est,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+
+
+#Reestimate RT-GJR-GARCH
+RTgjr_est_fit <- optim(
+  par  = start_par_RTgjr,
+  fn   = RTgjr_garch,
+  rt   = rt_est,
+  mu   = mu_est,
+  method  = "L-BFGS-B",
+  lower   = c(1e-8, 0, 1e-8, 0, 0, 1e-8),
+  upper   = c(Inf,  1, 1,    1, 1, 1),
+  control = list(maxit = 1000)
+)
+
+#------------------------RECURSIONS FOR ESTIMATION-----------------------------------------------------------
+
+#GARCH recursion
+
+h_1 <- numeric(T)
+h_1[1] <- var(rt_est)
+
+omega <- garch_est_fit$par[1]
+alpha <- garch_est_fit$par[2]
+beta <- garch_est_fit$par[3]
+
+for (t in 1:(T - 1)) {
+  h_1[t + 1] <- omega + alpha*(rt[t] - mu_est)^2 + beta*h_1[t]
+}
+
+
+#GARCH-GJR recursion
+
+h_garch <- numeric(T)
+h_garch[1] <- var(rt_est)
+
+omega <- gjr_est_fit$par[1]
+alpha1 <- gjr_est_fit$par[2]
+alpha2 <- gjr_est_fit$par[3]
+beta <- gjr_est_fit$par[4]
+
+shock <- rt - mu_est
+
+for (t in 1:(T - 1)) {
+  
+  indicator <- ifelse(shock[t] < 0, 1, 0)
+  
+  h_garch[t+1] <- omega +
+    alpha1 * indicator * shock[t]^2 +        # alpha1 when negative
+    alpha2 * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
+    beta * h_garch[t]
+}
+
+
+#RT-GARCH recursion
+
+h_htgarch <- numeric(T)
+g_htgarch <- numeric(T)
+
+omega <- RTgarch_est_fit$par[1]
+alpha <- RTgarch_est_fit$par[2]
+beta <- RTgarch_est_fit$par[3]
+psi <- RTgarch_est_fit$par[4]
+
+h_htgarch[1] <- omega / (1 - beta - psi)
+
+for (t in 1:(T - 1)) {
+  h_htgarch[t + 1] <- 0.5*(omega + beta*h_htgarch[t] + alpha*(rt[t] - mu_est)^2) + 0.5*sqrt((omega + beta*h_htgarch[t] + alpha*(rt[t] - mu_est)^2)^2 + 4*psi*h_htgarch[t]*(rt[t+1] - mu_est)^2)
+  g_htgarch[t] <- omega + beta*h_htgarch[t] + alpha*(rt[t] - mu_est)^2
+}
+
+#RT-GARCH-GJR recursion
+
+h_htgarchgjr <- numeric(T)
+g_htgarchgjr <- numeric(T)
+
+omega  <- RTgjr_est_fit$par[1]
+alpha1 <- RTgjr_est_fit$par[2]
+alpha2 <- RTgjr_est_fit$par[3]
+beta   <- RTgjr_est_fit$par[4]
+phi1   <- RTgjr_est_fit$par[5]
+phi2   <- RTgjr_est_fit$par[6]
+
+phi_bar   <- (phi1 + phi2) / 2
+alpha_bar <- (alpha1 + alpha2) / 2
+
+h_htgarchgjr[1] <- omega / (1 - beta - phi_bar)
+
+for (t in 1:(T-1)) {
+  alpha_t <- ifelse(rt[t]   <= mu_est, alpha1, alpha2)
+  phi_t   <- ifelse(rt[t+1] <= mu_est, phi1,   phi2)
+  g_t     <- omega + beta*h_htgarchgjr[t] + alpha_t*(rt[t]-mu_est)^2
+  h_htgarchgjr[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h_htgarchgjr[t]*(rt[t+1]-mu_est)^2)
+  g_htgarchgjr[t] <- g_t
+}
+
+
+
+
+#-----------------------------------------TARGET VALUES-----------------------------------------------------
+
+num_forecast <- T - T_est
+
+# Demeaned squared return
+TV_r <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)){
+  TV_r[indx] <- (rt[t+1] - mu_est)^2
+  indx <- indx + 1
+}
+
+#Realised variance 
+TV_rv <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)){
+  TV_rv[indx] <- df_init$`RV5_SS × 10^4`[t + 1]
+  indx <- indx + 1
+}
+
+
+
+#-----------PREDICTED VALUES-----------------------------------------------
+
+#one-day GARCH forecast
+PV_GARCH <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_GARCH[indx] <- h_1[t + 1]
+  indx <- indx + 1
+}
+
+#one-day GARCH-GJR forecast
+PV_GARCHGJR <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_GARCHGJR[indx] <- h_garch[t + 1]
+  indx <- indx + 1
+}
+
+#one-day RT-GARCH forecast
+PV_RTGARCH <- numeric(num_forecast)
+kurtosis <- 3
+psi <- RTgarch_est_fit$par[4]
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_RTGARCH[indx] <- g_htgarch[t] + h_htgarch[t] * kurtosis * psi
+  indx <- indx + 1
+  
+}
+
+#one-day RT-GARCH_GJR forecast
+PV_RTGARCHGJR <- numeric(num_forecast)
+kurtosis <- 3
+phi1   <- RTgjr_est_fit$par[5]
+phi2   <- RTgjr_est_fit$par[6]
+phi_bar   <- (phi1 + phi2) / 2
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_RTGARCHGJR[indx] <- g_htgarchgjr[t] + h_htgarchgjr[t] * kurtosis * phi_bar
+  indx <- indx + 1
+  
+}
+
+
+#one-day VIX forecast
+PV_VIX <- numeric(num_forecast)
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_VIX[indx] <- (df_init$VIX[t])^2 / 250
+  indx <- indx + 1
+}
+
+#HAR-RV forecast
+RV_day <- numeric(T)
+RV_week <- numeric(T)
+RV_month <- numeric(T)
+
+for (t in 1:T){
+  RV_day[t] <- df_init$`RV5_SS × 10^4`[t]
+  if (t > 4){
+    RV_week[t] <- sum(RV_day[(t-4):t]) / 5
+  }
+  if (t > 20){
+    RV_month[t] <- sum(RV_day[(t-20):t]) / 21
+  }
+}
+
+PV_HAR_RV <- numeric(num_forecast)
+PV_HAR_R  <- numeric(num_forecast)
+
+RV_d_est <- RV_day[21:(T_est - 1)]
+RV_w_est <- RV_week[21:(T_est - 1)]
+RV_m_est <- RV_month[21:(T_est - 1)]
+
+TV_rv_est <- RV_day[22:T_est]
+TV_r_est  <- (rt[22:T_est] - mu_est)^2
+
+har_data <- data.frame(RV_d_est,RV_w_est, RV_m_est, TV_rv_est, TV_r_est)
+
+model_rv <- lm(TV_rv_est ~ RV_d_est + RV_w_est + RV_m_est, data = har_data)
+model_r <- lm(TV_r_est ~ RV_d_est + RV_w_est + RV_m_est, data = har_data)
+
+indx <- 1
+
+for (t in T_est:(T - 1)) {
+  PV_HAR_RV[indx] <- coef(model_rv)[1] + coef(model_rv)[2]*RV_day[t] + coef(model_rv)[3]*RV_week[t] + coef(model_rv)[4]*RV_month[t]
+  PV_HAR_R[indx] <- coef(model_r)[1] + coef(model_r)[2]*RV_day[t] + coef(model_r)[3]*RV_week[t] + coef(model_r)[4]*RV_month[t]
+  indx <- indx + 1
+}
+
+#-------------------------------LOSS FUNCTIONS----------------------------------------
+
+#For cases when forecasts are nonpositive 
+safety_val <- 1e-10
+PV_HAR_RV[PV_HAR_RV <= 0] <- safety_val
+PV_HAR_R[PV_HAR_R <= 0] <- safety_val
+PV_GARCH[PV_GARCH <= 0] <- safety_val
+PV_GARCHGJR[PV_GARCHGJR <= 0] <- safety_val
+PV_RTGARCH[PV_RTGARCH <= 0] <- safety_val
+PV_RTGARCHGJR[PV_RTGARCHGJR <= 0] <- safety_val
+PV_VIX[PV_VIX <= 0] <- safety_val
+
+#Loss function calculations
+calc_losses <- function(PV, TV) {
+  evaluation_size <- length(PV)
+  
+  # Mean Squared Error
+  mse <- (1/evaluation_size) * sum((TV - PV)^2)
+  
+  # QLIKE Loss
+  qlike <- (1/evaluation_size) * sum(log(PV) + (TV / PV))
+  
+  return(c(MSE = mse, QLIKE = qlike))
+}
+
+
+# List of all predicted values
+predictions <- list(
+  GARCH = PV_GARCH,
+  GJR_GARCH = PV_GARCHGJR,
+  RT_GARCH = PV_RTGARCH,
+  RT_GJR = PV_RTGARCHGJR,
+  VIX = PV_VIX,
+  HAR = PV_HAR_RV
+)
+
+
+loss_rv <- sapply(predictions, function(p) calc_losses(p, TV_rv))
+predictions$HAR <- PV_HAR_R 
+loss_r <- sapply(predictions, function(p) calc_losses(p, TV_r))
+
+
+final_results <- rbind(
+  Target_RV_MSE   = loss_rv["MSE", ],
+  Target_RV_QLIKE = loss_rv["QLIKE", ],
+  Target_R_MSE    = loss_r["MSE", ],
+  Target_R_QLIKE  = loss_r["QLIKE", ]
+)
+
+print(round(final_results, 6))
