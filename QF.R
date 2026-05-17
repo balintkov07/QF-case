@@ -11,6 +11,9 @@ library(e1071)
 
 library(tidyr)
 
+install.packages("numDeriv")
+library(numDeriv)
+
 #--------------------------DATA PROCESSING --------------------------
 
 # Janek:
@@ -955,13 +958,50 @@ DummyRTgarchGJR_fit$par
 DummyRTgarchGJR_fit$value
 DummyRTgarchGJR_fit$convergence
 
-DummyRTgarch_fit$par
-DummyRTgarch_fit$value
-DummyRTgarch_fit$convergence
 
-DummyRTgarchGJR_fit$par
-DummyRTgarchGJR_fit$value
-DummyRTgarchGJR_fit$convergence
+#--------------------------HESSIANS--------------------------------------------
+
+rt <- df_init$`CC Return (%)`
+mu <- mean(rt)
+T <- length(rt)
+
+
+FischerGARCH <- matrix(0,3,3)
+for (i in 1:T){
+
+  ObsLLGARCH <- function(par) {
+    
+    omega <- par[1]
+    alpha <- par[2]
+    beta  <- par[3]
+    
+    h <- numeric(i)
+    
+    # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+    h[1] <- omega/(1-alpha-beta)
+    
+
+    
+    
+    if (i > 1){
+      for (t in 2:i){
+        h[t] <- omega + alpha * (rt[t-1] - mu)^2 + beta * h[t-1]
+      }
+    }
+    
+    # log-likelihood
+    garch11ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((rt[i] - mu)^2 / h[i]))
+    
+    return(garch11ll)
+  }
+  print(i)
+  
+  FischerGARCH <- FischerGARCH + hessian(ObsLLGARCH, garch_fit$par, method = "complex")
+}
+
+FischerGARCH <- solve(-FischerGARCH)
+
+
 
 #--------------------------h_t PLOTTING ---------------------------------------
 
