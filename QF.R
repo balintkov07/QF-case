@@ -728,8 +728,8 @@ DummyGARCH_gjr <- function(par, rt, mu, DUM) {
     indicator <- ifelse(shock[t] < 0, 1, 0)
     
     h[t+1] <- omega +
-      (alpha1 * indicator * delta*DUM[t]) * shock[t]^2 +        # alpha1 when negative
-      (alpha2 * (1 - indicator) * delta*DUM[t]) * shock[t]^2 +  # alpha2 when positive
+      (alpha1 + delta*DUM[t]) * indicator * shock[t]^2 +        # alpha1 when negative
+      (alpha2 + delta*DUM[t]) * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
       beta * h[t]
   }
   
@@ -963,9 +963,9 @@ for (i in 1:T){
     }
     
     # log-likelihood
-    garch11ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((rt[i] - mu)^2 / h[i]))
+    ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((rt[i] - mu)^2 / h[i]))
     
-    return(garch11ll)
+    return(ll)
   }
   if (i %% 500 == 0) {
     print(i)
@@ -1012,9 +1012,9 @@ for (i in 1:T){
     }
     
     # log-likelihood
-    garch11ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((shock[i])^2 / h[i]))
+    ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((shock[i])^2 / h[i]))
     
-    return(garch11ll)
+    return(ll)
   }
   if (i %% 500 == 0) {
     print(i)
@@ -1056,9 +1056,9 @@ for (i in 2:T){
     }
     
     # log-likelihood
-    garch11ll <- -0.5*log(2*pi)-0.5*(shock[i])^2/h[i]+log(sqrt(h[i])/(h[i]+phi*h[i-1]*(shock[i])^2/h[i]))
+    ll <- -0.5*log(2*pi)-0.5*(shock[i])^2/h[i]+log(sqrt(h[i])/(h[i]+phi*h[i-1]*(shock[i])^2/h[i]))
     
-    return(garch11ll)
+    return(ll)
   }
   if (i %% 500 == 0) {
     print(i)
@@ -1126,6 +1126,209 @@ tStats_RTGJRGARCH <- c(omega = RTgjr_fit$par[1]/sqrt(CovRTGJRGARCH[1,1]),
                     phi2 = RTgjr_fit$par[6]/sqrt(CovRTGJRGARCH[6,6])
 )
 print(tStats_RTGJRGARCH)
+
+
+## ----------------- Dummmy Garch model
+
+DUM <- DummyAfterHoliday
+
+
+FischerGARCH <- matrix(0,4,4)
+for (i in 1:T){
+  
+  ObsLL <- function(par) {
+    
+    omega <- par[1]
+    alpha <- par[2]
+    beta  <- par[3]
+    delta <- par[4]
+    
+    h <- numeric(i)
+    
+    # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+    h[1] <- omega/(1 - alpha - delta*mean(DUM) - beta)
+    
+    
+    
+    
+    if (i > 1){
+      for (t in 2:i){
+        h[t] <- omega + (alpha + delta*DUM[t-1]) * (rt[t-1] - mu)^2 + beta * h[t-1]
+      }
+    }
+    
+    # log-likelihood
+    ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((rt[i] - mu)^2 / h[i]))
+    
+    return(ll)
+  }
+  if (i %% 500 == 0) {
+    print(i)
+  }
+  
+  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, Dummygarch_fit$par, method = "complex"), grad(ObsLL, Dummygarch_fit$par, method = "complex"))
+}
+
+CovDUMMYGARCH <- solve(FischerGARCH)
+tStats_DUMMYGARCh <- c(omega = Dummygarch_fit$par[1]/sqrt(CovDUMMYGARCH[1,1]),
+                        alpha = Dummygarch_fit$par[2]/sqrt(CovDUMMYGARCH[2,2]),
+                        beta = Dummygarch_fit$par[3]/sqrt(CovDUMMYGARCH[3,3]),
+                        delta = Dummygarch_fit$par[4]/sqrt(CovDUMMYGARCH[4,4])
+)
+print(tStats_DUMMYGARCh)
+
+## ----------------- Dummmy GJR-Garch model
+
+FischerGARCH <- matrix(0,5,5)
+for (i in 1:T){
+  
+  ObsLL <- function(par) {
+    
+    omega <- par[1]
+    alpha1 <- par[2]
+    alpha2 <- par[3]
+    beta  <- par[4]
+    delta <- par[5]
+    
+    h <- numeric(i)
+    
+    # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+    h[1] <- omega/(1-(alpha1+alpha2)/2 - delta*mean(DUM) -beta)
+    
+    shock <- rt - mu
+    
+    if (i > 1){
+      for (t in 2:i){
+        indicator <- ifelse(shock[t-1] < 0, 1, 0)
+        
+        h[t] <- omega +
+          (alpha1 + delta*DUM[t-1]) * indicator * shock[t-1]^2 +        # alpha1 when negative
+          (alpha2 + delta*DUM[t-1]) * (1 - indicator) * shock[t-1]^2 +  # alpha2 when positive
+          beta * h[t-1]
+      }
+    }
+    
+    # log-likelihood
+    ll <- 0.5 * (-log(2 * pi) - log(h[i]) - ((shock[i])^2 / h[i]))
+    
+    return(ll)
+  }
+  if (i %% 500 == 0) {
+    print(i)
+  }
+  
+  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, Dummygjr_fit$par, method = "complex"), grad(ObsLL, Dummygjr_fit$par, method = "complex"))
+}
+
+CovDUMMYGJRGARCH <- solve(FischerGARCH)
+tStats_DUMMYGJRGARCh <- c(omega = Dummygjr_fit$par[1]/sqrt(CovGJRGARCH[1,1]),
+                     alpha1 = Dummygjr_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
+                     alpha2 = Dummygjr_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
+                     beta = Dummygjr_fit$par[4]/sqrt(CovGJRGARCH[4,4]),
+                     delta = Dummygjr_fit$par[5]/sqrt(CovDUMMYGJRGARCH[5,5])
+)
+print(tStats_DUMMYGJRGARCh)
+
+## ----------------- Dummmy RTGarch model
+
+FischerGARCH <- matrix(0,5,5)
+for (i in 2:T){
+  
+  ObsLL <- function(par) {
+    
+    omega <- par[1]
+    alpha <- par[2]
+    beta  <- par[3]
+    phi <- par[4]
+    delta <- par[5]
+    
+    
+    h <- numeric(i)
+    
+    # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+    h[1] <- omega / (1 - beta - phi - alpha - delta*mean(DUM) - 2*phi*(alpha + delta*mean(DUM)))
+    
+    shock <- rt - mu
+    
+    for (t in 2:i){
+      h[t] <- 0.5*(omega + beta*h[t-1] + (alpha+delta*DUM[t-1])*(shock[t-1])^2) + 0.5*sqrt((omega + beta*h[t-1] + (alpha+delta*DUM[t-1])*(shock[t-1])^2)^2 + 4*phi*h[t-1]*(shock[t])^2)
+    }
+    
+    # log-likelihood
+    ll <- -0.5*log(2*pi)-0.5*(shock[i])^2/h[i]+log(sqrt(h[i])/(h[i]+phi*h[i-1]*(shock[i])^2/h[i]))
+    
+    return(ll)
+  }
+  if (i %% 500 == 0) {
+    print(i)
+  }
+  
+  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, DummyRTgarch_fit$par, method = "complex"), grad(ObsLL, DummyRTgarch_fit$par, method = "complex"))
+}
+
+CovDUMMYRTGARCH <- solve(FischerGARCH)
+tStats_DUMMYRTGARCH <- c(omega = DummyRTgarch_fit$par[1]/sqrt(CovDUMMYRTGARCH[1,1]),
+                    alpha = DummyRTgarch_fit$par[2]/sqrt(CovDUMMYRTGARCH[2,2]),
+                    beta = DummyRTgarch_fit$par[3]/sqrt(CovDUMMYRTGARCH[3,3]),
+                    phi = DummyRTgarch_fit$par[4]/sqrt(CovDUMMYRTGARCH[4,4]),
+                    delta = DummyRTgarch_fit$par[5]/sqrt(CovDUMMYRTGARCH[5,5])
+)
+print(tStats_DUMMYRTGARCH)
+
+## ----------------- Dummmy RTGJRGarch model
+
+FischerGARCH <- matrix(0,7,7)
+for (i in 2:T){
+  
+  ObsLL <- function(par) {
+    
+    omega <- par[1]
+    alpha1 <- par[2]
+    alpha2 <- par[3]
+    beta <- par[4]
+    phi1 <- par[5]
+    phi2 <- par[6]
+    delta <- par[7]
+    
+    phi_bar   <- (phi1 + phi2) / 2
+    alpha_bar <- (alpha1 + alpha2) / 2
+    
+    h <- numeric(i)
+    h[1] <- omega / (1 - beta - phi_bar - alpha_bar - delta*mean(DUM) + (alpha_bar + delta*mean(DUM))*phi_bar - 3/2*(alpha1*phi1 + alpha2*phi2) - 3*delta*mean(DUM)*phi_bar)
+    
+    
+    for (t in 2:i) {
+      alpha_t_1 <- ifelse(rt[t-1]   <= mu, alpha1, alpha2)
+      phi_t   <- ifelse(rt[t] <= mu, phi1,   phi2)
+      g_t_1     <- omega + beta*h[t-1] + (alpha_t_1 + delta*mean(DUM))*(rt[t-1]-mu)^2
+      h[t]  <- 0.5*g_t_1 + 0.5*sqrt(g_t_1^2 + 4*phi_t*h[t-1]*(rt[t]-mu)^2)
+    }
+    
+    phi_i   <- ifelse(rt[i] <= mu, phi1,   phi2)
+    
+    ll <- -0.5*log(2*pi) - 0.5*(rt[i]-mu)^2/h[i] + log(sqrt(h[i])/(h[i] + phi_i*h[i-1]*(rt[i]-mu)^2/h[i]))
+    
+    
+    return(ll)
+  }
+  if (i %% 500 == 0) {
+    print(i)
+  }
+  
+  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, DummyRTgarchGJR_fit$par, method = "complex"), grad(ObsLL, DummyRTgarchGJR_fit$par, method = "complex"))
+}
+
+CovDUMMYRTGJRGARCH <- solve(FischerGARCH)
+tStats_DUMMYRTGJRGARCH <- c(omega = DummyRTgarchGJR_fit$par[1]/sqrt(CovDUMMYRTGJRGARCH[1,1]),
+                       alpha1 = DummyRTgarchGJR_fit$par[2]/sqrt(CovDUMMYRTGJRGARCH[2,2]),
+                       alpha2 = DummyRTgarchGJR_fit$par[3]/sqrt(CovDUMMYRTGJRGARCH[3,3]),
+                       beta = DummyRTgarchGJR_fit$par[4]/sqrt(CovDUMMYRTGJRGARCH[4,4]),
+                       phi1 = DummyRTgarchGJR_fit$par[5]/sqrt(CovDUMMYRTGJRGARCH[5,5]),
+                       phi2 = DummyRTgarchGJR_fit$par[6]/sqrt(CovDUMMYRTGJRGARCH[6,6]),
+                       delta = DummyRTgarchGJR_fit$par[7]/sqrt(CovDUMMYRTGJRGARCH[7,7])
+)
+print(tStats_RTGJRGARCH)
+
 
 
 
