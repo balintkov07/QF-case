@@ -878,6 +878,13 @@ if(length(T_est) == 0) T_est <- max(which(df_init$Date <= as.Date("2019-12-31"))
 rt_est <- rt[1:T_est]
 mu_est <- mean(rt_est)
 
+#Alternative post-covid split
+#df_init$Date <- as.Date(df_init$Date) 
+#T_est <- which(df_init$Date == as.Date("2022-12-31"))
+#if(length(T_est) == 0) T_est <- max(which(df_init$Date <= as.Date("2022-12-31")))
+#rt_est <- rt[1:T_est]
+#mu_est <- mean(rt_est)
+
 #Reestimate GARCH
 garch_est_fit <- optim(
   par = start_par,
@@ -1128,7 +1135,12 @@ for (t in T_est:(T - 1)) {
   indx <- indx + 1
 }
 
+#-----------PLOT FOR PVs and TVs-------------------------------------
+
+
+
 #-------------------------------LOSS FUNCTIONS----------------------------------------
+
 
 #For cases when forecasts are nonpositive 
 safety_val <- 1e-10
@@ -1178,3 +1190,310 @@ final_results <- rbind(
 )
 
 print(round(final_results, 6))
+
+#---------------DIEBOLD-MARIANO & MINCER-ZARNOWITZ TESTS-----------------------------------
+
+install.packages("forecast")
+library(forecast)
+
+crisis_1 <- 1:760
+calm <- 761:1211
+crisis_2 <- 1212:1597
+
+#####################################
+# MSE LOSSES
+####################################
+
+######RV TARGETS#########
+
+# GJR-GARCH vs RT-GJR-GARCH
+dm_RV_c1_gjr_rt  <- dm.test((TV_rv[crisis_1] - PV_GARCHGJR[crisis_1]), 
+                         (TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), alternative = "two.sided")
+
+# RT-GJR-GARCH vs HAR-RV Baseline
+dm_RV_c1_rt_har  <- dm.test((TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
+                         (TV_rv[crisis_1] - PV_HAR_RV[crisis_1]), alternative = "two.sided")
+
+# RT-GJR-GARCH vs VIX Baseline
+dm_RV_c1_rt_vix  <- dm.test((TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
+                         (TV_rv[crisis_1] - PV_VIX[crisis_1]), alternative = "two.sided")
+
+
+
+#calm (2023 to september 2024)
+
+dm_RV_calm_gjr_rt <- dm.test((TV_rv[calm] - PV_GARCHGJR[calm]), 
+                          (TV_rv[calm] - PV_RTGARCHGJR[calm]), alternative = "two.sided")
+
+dm_RV_calm_rt_har <- dm.test((TV_rv[calm] - PV_RTGARCHGJR[calm]), 
+                          (TV_rv[calm] - PV_HAR_RV[calm]), alternative = "two.sided")
+
+dm_RV_calm_rt_vix <- dm.test((TV_rv[calm] - PV_RTGARCHGJR[calm]), 
+                          (TV_rv[calm] - PV_VIX[calm]), alternative = "two.sided")
+
+
+
+#Crisis 2 (starting october 2024)
+dm_RV_c2_gjr_rt  <- dm.test((TV_rv[crisis_2] - PV_GARCHGJR[crisis_2]), 
+                         (TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), alternative = "two.sided")
+
+dm_RV_c2_rt_har  <- dm.test((TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
+                         (TV_rv[crisis_2] - PV_HAR_RV[crisis_2]), alternative = "two.sided")
+
+dm_RV_c2_rt_vix  <- dm.test((TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
+                         (TV_rv[crisis_2] - PV_VIX[crisis_2]), alternative = "two.sided")
+
+#entire evaluation window
+dm_RV_gjr_rt  <- dm.test((TV_rv - PV_GARCHGJR), 
+                      (TV_rv - PV_RTGARCHGJR), alternative = "two.sided")
+
+dm_RV_rt_har  <- dm.test((TV_rv - PV_RTGARCHGJR), 
+                      (TV_rv - PV_HAR_RV), alternative = "two.sided")
+
+dm_RV_rt_vix  <- dm.test((TV_rv - PV_RTGARCHGJR), 
+                      (TV_rv - PV_VIX), alternative = "two.sided")
+
+#Results
+print("ENTIRE WINDOW")
+print(dm_RV_gjr_rt)
+print(dm_RV_rt_har)
+print(dm_RV_rt_vix)
+
+print("WINDOW 1")
+print(dm_RV_c1_gjr_rt)
+print(dm_RV_c1_rt_har)
+print(dm_RV_c1_rt_vix)
+
+print("WINDOW 2")
+print(dm_RV_calm_gjr_rt)
+print(dm_RV_calm_rt_har)
+print(dm_RV_calm_rt_vix)
+
+print("WINDOW 3")
+print(dm_RV_c2_gjr_rt)
+print(dm_RV_c2_rt_har)
+print(dm_RV_c2_rt_vix)
+
+
+#R TARGETS##########
+
+# GJR-GARCH vs RT-GJR-GARCH
+dm_R_c1_gjr_rt  <- dm.test((TV_r[crisis_1] - PV_GARCHGJR[crisis_1]), 
+                            (TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), alternative = "two.sided")
+
+# RT-GJR-GARCH vs HAR-RV Baseline
+dm_R_c1_rt_har  <- dm.test((TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
+                            (TV_r[crisis_1] - PV_HAR_RV[crisis_1]), alternative = "two.sided")
+
+# RT-GJR-GARCH vs VIX Baseline
+dm_R_c1_rt_vix  <- dm.test((TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
+                            (TV_r[crisis_1] - PV_VIX[crisis_1]), alternative = "two.sided")
+
+
+
+#calm (2023 to september 2024)
+
+dm_R_calm_gjr_rt <- dm.test((TV_r[calm] - PV_GARCHGJR[calm]), 
+                             (TV_r[calm] - PV_RTGARCHGJR[calm]), alternative = "two.sided")
+
+dm_R_calm_rt_har <- dm.test((TV_r[calm] - PV_RTGARCHGJR[calm]), 
+                             (TV_r[calm] - PV_HAR_RV[calm]), alternative = "two.sided")
+
+dm_R_calm_rt_vix <- dm.test((TV_r[calm] - PV_RTGARCHGJR[calm]), 
+                             (TV_r[calm] - PV_VIX[calm]), alternative = "two.sided")
+
+
+
+#Crisis 2 (starting october 2024)
+dm_R_c2_gjr_rt  <- dm.test((TV_r[crisis_2] - PV_GARCHGJR[crisis_2]), 
+                            (TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), alternative = "two.sided")
+
+dm_R_c2_rt_har  <- dm.test((TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
+                            (TV_r[crisis_2] - PV_HAR_RV[crisis_2]), alternative = "two.sided")
+
+dm_R_c2_rt_vix  <- dm.test((TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
+                            (TV_r[crisis_2] - PV_VIX[crisis_2]), alternative = "two.sided")
+
+#entire evaluation window
+dm_R_gjr_rt  <- dm.test((TV_r - PV_GARCHGJR), 
+                         (TV_r - PV_RTGARCHGJR), alternative = "two.sided")
+
+dm_R_rt_har  <- dm.test((TV_r - PV_RTGARCHGJR), 
+                         (TV_r - PV_HAR_RV), alternative = "two.sided")
+
+dm_R_rt_vix  <- dm.test((TV_r - PV_RTGARCHGJR), 
+                         (TV_r - PV_VIX), alternative = "two.sided")
+
+#Results
+print("ENTIRE WINDOW")
+print(dm_R_gjr_rt)
+print(dm_R_rt_har)
+print(dm_R_rt_vix)
+
+print("WINDOW 1")
+print(dm_R_c1_gjr_rt)
+print(dm_R_c1_rt_har)
+print(dm_R_c1_rt_vix)
+
+print("WINDOW 2")
+print(dm_R_calm_gjr_rt)
+print(dm_R_calm_rt_har)
+print(dm_R_calm_rt_vix)
+
+print("WINDOW 3")
+print(dm_R_c2_gjr_rt)
+print(dm_R_c2_rt_har)
+print(dm_R_c2_rt_vix)
+
+
+#####################################
+# QLIKE LOSSES
+####################################
+
+qlike_loss <- function(TV, PV) {
+  log(PV) + TV / PV
+}
+#RV TARGETS###############
+#crisis 1
+# GJR-GARCH vs RT-GJR-GARCH
+qdm_RV_c1_gjr_rt  <- dm.test(qlike_loss(TV_rv[crisis_1], PV_GARCHGJR[crisis_1]), 
+                            qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), alternative = "two.sided", h = 1)
+
+# RT-GJR-GARCH vs HAR-RV Baseline
+qdm_RV_c1_rt_har  <- dm.test(qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), 
+                            qlike_loss(TV_rv[crisis_1] , PV_HAR_RV[crisis_1]), alternative = "two.sided", h = 1)
+
+# RT-GJR-GARCH vs VIX Baseline
+qdm_RV_c1_rt_vix  <- dm.test(qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), 
+                            qlike_loss(TV_rv[crisis_1] , PV_VIX[crisis_1]), alternative = "two.sided", h = 1)
+
+
+
+#calm (2023 to september 2024)
+
+qdm_RV_calm_gjr_rt <- dm.test(qlike_loss(TV_rv[calm] , PV_GARCHGJR[calm]), 
+                             qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), alternative = "two.sided", h = 1)
+
+qdm_RV_calm_rt_har <- dm.test(qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), 
+                             qlike_loss(TV_rv[calm] , PV_HAR_RV[calm]), alternative = "two.sided", h = 1)
+
+qdm_RV_calm_rt_vix <- dm.test(qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), 
+                             qlike_loss(TV_rv[calm] , PV_VIX[calm]), alternative = "two.sided", h = 1)
+
+
+
+#Crisis 2 (starting october 2024)
+qdm_RV_c2_gjr_rt  <- dm.test(qlike_loss(TV_rv[crisis_2] , PV_GARCHGJR[crisis_2]), 
+                            qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), alternative = "two.sided", h = 1)
+
+qdm_RV_c2_rt_har  <- dm.test(qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), 
+                            qlike_loss(TV_rv[crisis_2] , PV_HAR_RV[crisis_2]), alternative = "two.sided", h = 1)
+
+qdm_RV_c2_rt_vix  <- dm.test(qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), 
+                            qlike_loss(TV_rv[crisis_2] , PV_VIX[crisis_2]), alternative = "two.sided", h = 1)
+
+#entire evaluation window
+qdm_RV_gjr_rt  <- dm.test(qlike_loss(TV_rv , PV_GARCHGJR), 
+                         qlike_loss(TV_rv , PV_RTGARCHGJR), alternative = "two.sided", h = 1)
+
+qdm_RV_rt_har  <- dm.test(qlike_loss(TV_rv , PV_RTGARCHGJR), 
+                         qlike_loss(TV_rv , PV_HAR_RV), alternative = "two.sided", h = 1)
+
+qdm_RV_rt_vix  <- dm.test(qlike_loss(TV_rv , PV_RTGARCHGJR), 
+                         qlike_loss(TV_rv , PV_VIX), alternative = "two.sided", h = 1)
+
+#Results
+print("ENTIRE WINDOW")
+print(qdm_RV_gjr_rt)
+print(qdm_RV_rt_har)
+print(qdm_RV_rt_vix)
+
+print("WINDOW 1")
+print(qdm_RV_c1_gjr_rt)
+print(qdm_RV_c1_rt_har)
+print(qdm_RV_c1_rt_vix)
+
+print("WINDOW 2")
+print(qdm_RV_calm_gjr_rt)
+print(qdm_RV_calm_rt_har)
+print(qdm_RV_calm_rt_vix)
+
+print("WINDOW 3")
+print(qdm_RV_c2_gjr_rt)
+print(qdm_RV_c2_rt_har)
+print(qdm_RV_c2_rt_vix)
+
+
+#R TARGETS#################
+
+#crisis 1
+# GJR-GARCH vs RT-GJR-GARCH
+qdm_R_c1_gjr_rt  <- dm.test(qlike_loss(TV_r[crisis_1], PV_GARCHGJR[crisis_1]), 
+                            qlike_loss(TV_r[crisis_1] , PV_RTGARCHGJR[crisis_1]), alternative = "two.sided", h = 1)
+
+# RT-GJR-GARCH vs HAR-RV Baseline
+qdm_R_c1_rt_har  <- dm.test(qlike_loss(TV_r[crisis_1] , PV_RTGARCHGJR[crisis_1]), 
+                            qlike_loss(TV_r[crisis_1] , PV_HAR_RV[crisis_1]), alternative = "two.sided", h = 1)
+
+# RT-GJR-GARCH vs VIX Baseline
+qdm_R_c1_rt_vix  <- dm.test(qlike_loss(TV_r[crisis_1] , PV_RTGARCHGJR[crisis_1]), 
+                            qlike_loss(TV_r[crisis_1] , PV_VIX[crisis_1]), alternative = "two.sided", h = 1)
+
+
+
+#calm (2023 to september 2024)
+
+qdm_R_calm_gjr_rt <- dm.test(qlike_loss(TV_r[calm] , PV_GARCHGJR[calm]), 
+                             qlike_loss(TV_r[calm] , PV_RTGARCHGJR[calm]), alternative = "two.sided", h = 1)
+
+qdm_R_calm_rt_har <- dm.test(qlike_loss(TV_r[calm] , PV_RTGARCHGJR[calm]), 
+                             qlike_loss(TV_r[calm] , PV_HAR_RV[calm]), alternative = "two.sided", h = 1)
+
+qdm_R_calm_rt_vix <- dm.test(qlike_loss(TV_r[calm] , PV_RTGARCHGJR[calm]), 
+                             qlike_loss(TV_r[calm] , PV_VIX[calm]), alternative = "two.sided", h = 1)
+
+
+
+#Crisis 2 (starting october 2024)
+qdm_R_c2_gjr_rt  <- dm.test(qlike_loss(TV_r[crisis_2] , PV_GARCHGJR[crisis_2]), 
+                            qlike_loss(TV_r[crisis_2] , PV_RTGARCHGJR[crisis_2]), alternative = "two.sided", h = 1)
+
+qdm_R_c2_rt_har  <- dm.test(qlike_loss(TV_r[crisis_2] , PV_RTGARCHGJR[crisis_2]), 
+                            qlike_loss(TV_r[crisis_2] , PV_HAR_RV[crisis_2]), alternative = "two.sided", h = 1)
+
+qdm_R_c2_rt_vix  <- dm.test(qlike_loss(TV_r[crisis_2] , PV_RTGARCHGJR[crisis_2]), 
+                            qlike_loss(TV_r[crisis_2] , PV_VIX[crisis_2]), alternative = "two.sided", h = 1)
+
+#entire evaluation window
+qdm_R_gjr_rt  <- dm.test(qlike_loss(TV_r , PV_GARCHGJR), 
+                         qlike_loss(TV_r , PV_RTGARCHGJR), alternative = "two.sided", h = 1)
+
+qdm_R_rt_har  <- dm.test(qlike_loss(TV_r , PV_RTGARCHGJR), 
+                         qlike_loss(TV_r , PV_HAR_RV), alternative = "two.sided", h = 1)
+
+qdm_R_rt_vix  <- dm.test(qlike_loss(TV_r , PV_RTGARCHGJR), 
+                         qlike_loss(TV_r , PV_VIX), alternative = "two.sided", h = 1)
+
+#Results
+print("ENTIRE WINDOW")
+print(qdm_R_gjr_rt)
+print(qdm_R_rt_har)
+print(qdm_R_rt_vix)
+
+print("WINDOW 1")
+print(qdm_R_c1_gjr_rt)
+print(qdm_R_c1_rt_har)
+print(qdm_R_c1_rt_vix)
+
+print("WINDOW 2")
+print(qdm_R_calm_gjr_rt)
+print(qdm_R_calm_rt_har)
+print(qdm_R_calm_rt_vix)
+
+print("WINDOW 3")
+print(qdm_R_c2_gjr_rt)
+print(qdm_R_c2_rt_har)
+print(qdm_R_c2_rt_vix)
+
+
+
