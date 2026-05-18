@@ -4,7 +4,7 @@ library("readxl")
 
 #For skewness & kurtosis analysis
 install.packages("GGally")
-library("GGally")
+library(GGally)
 
 install.packages("e1071")
 library(e1071)
@@ -23,14 +23,12 @@ library(numDeriv)
 #df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+df_init <- read_excel("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Filip
 #df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
-
-df_init <- read_excel("data.xlsx")[-1, ]
 
 #Divide the days into positive, negative or zero returns 
 df_pos <- df_init[df_init$`CC Return (%)` > 0, ]
@@ -46,8 +44,63 @@ print(cat(("| Number of Positive Days: "), nrow(df_pos), ("| Number of Negative 
 
 #Arbitrary - baseline plots -> Returns, Realized Variance, VIX
 plot(df_init$`CC Return (%)`)
-plot(df_init$`RV5_SS × 10^4`)
-plot(df_init$VIX)
+plot(df_init$`RV5_SS × 10^4`, 
+     ylab = "RV5_SS x 10^4",
+     main = "Realized Variance, daily 2009 - 2026")
+
+
+plot(df_init$VIX, 
+     ylab = "VIX price",
+     main = "VIX")
+
+
+
+# Pretty Graphs - > CC return, rv5, vix
+
+
+plot(
+  df_init$Date,
+  df_init$`CC Return (%)`,
+  col = ifelse(df_init$`CC Return (%)` < 0, "blue", "red"),
+  pch = 20,
+  xlab = "Date",
+  ylab = "CC Return",
+  main = "Close to Close Returns (daily 2009 - 2026, in %)"
+)
+
+abline(h = 0, lty = 2, col = "black")
+
+
+threshold_75VIX <- quantile(df_init$VIX, 0.75, na.rm = TRUE)
+
+print(threshold_75VIX)
+
+plot(
+  df_init$Date,
+  df_init$VIX,
+  col = ifelse(df_init$VIX < 21.3175, "black", "black"),
+  pch = 20,
+  xlab = "Date",
+  ylab = "VIX",
+  main = "VIX (daily 2009 - 2026, in %)"
+)
+
+abline(h = 21.3175, lty = 2, col = "black")
+
+threshold_75rv <- quantile(df_init$`RV5_SS × 10^4`, 0.75, na.rm = TRUE)
+print(threshold_75rv)
+
+plot(
+  df_init$Date,
+  df_init$`RV5_SS × 10^4`,
+  col = ifelse(df_init$`RV5_SS × 10^4` < 1.074468, "blue", "red"),
+  pch = 20,
+  xlab = "Date",
+  ylab = "RV",
+  main = "RV (daily 2009 - 2026, in %)"
+)
+
+abline(h = 1.074468, lty = 2, col = "black")
 
 #Baseline summary statistics of key variables
 summary(df_init$`CC Return (%)`)
@@ -57,10 +110,428 @@ print(cat(("Skewness and Kurtosis (respectively) for Close to Close returns"), s
 print(cat(("Skewness and Kurtosis (respectively) for Realized variance * 10^4"), skewness(df_init$`RV5_SS × 10^4`), kurtosis(df_init$`RV5_SS × 10^4`)))
 print(cat(("Skewness and Kurtosis (respectively) for VIX index"), skewness(df_init$VIX), kurtosis(df_init$VIX)))
 
-#--------------------------GARCH SETUP --------------------------
+
+#-----Discrete state space transition probabilities, complement Garch using changes in regimes. 
+
 rt <- as.numeric(df_init$`CC Return (%)`)
+rv <- as.numeric(df_init$`RV5_SS × 10^4`)
 mu <- mean(rt)
 T <- length(rt)
+
+#lag-safe threshold -> top 25% realised variance = high-vol state
+threshold <- quantile(rv, 0.75, na.rm = TRUE)
+
+state <- ifelse(rv > threshold, "H", "L")
+
+markov_df <- data.frame(
+  state_t   = state[-length(state)],
+  state_tp1 = state[-1],
+  r_t       = rt[-length(r)]
+)
+
+
+markov_df$return_sign <- ifelse(markov_df$r_t < 0, "negative", "positive_or_zero")
+
+# Conditional transition probabilities:
+tab <- xtabs(~ state_t + return_sign + state_tp1, data = markov_df)
+
+prob <- prop.table(tab, margin = c(1, 2))
+
+prob[, , "H"]
+prob[, , "L"]
+
+head(tab)
+
+
+#__Markov Printing__
+high_tbl <- round(prob[, , "H"], 3)
+low_tbl  <- round(prob[, , "L"], 3)
+
+colnames(high_tbl) <- c("Negative Return", "Positive / Zero Return")
+rownames(high_tbl) <- c("Current State: High", "Current State: Low")
+
+colnames(low_tbl) <- c("Negative Return", "Positive / Zero Return")
+rownames(low_tbl) <- c("Current State: High", "Current State: Low")
+
+library(knitr)
+
+kable(high_tbl,
+      caption = "Probability of Transitioning to High-Volatility State")
+
+kable(low_tbl,
+      caption = "Probability of Transitioning to Low-Volatility State")
+
+
+
+
+# ============================================================
+# 5-STATE VOLATILITY REGIME EXTENSION
+# ============================================================
+
+#install.packages("nnet")
+library(nnet)
+
+# ----------------------------
+# 1. Define variables
+# ----------------------------
+
+rv <- as.numeric(df_init$`RV5_SS × 10^4`)
+r  <- as.numeric(df_init$`CC Return (%)`)
+
+# Create 5 volatility states using quintiles of realised variance
+q <- quantile(rv, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+vol_state <- cut(
+  rv,
+  breaks = q,
+  include.lowest = TRUE,
+  labels = c("Very Low", "Low", "Medium", "High", "Extreme")
+)
+
+# Build transition dataset
+markov5_df <- data.frame(
+  state_t   = vol_state[-length(vol_state)],
+  state_tp1 = vol_state[-1],
+  r_t       = r[-length(r)]
+)
+
+markov5_df$return_sign <- ifelse(
+  markov5_df$r_t < 0,
+  "Negative",
+  "Positive_or_Zero"
+)
+
+markov5_df$abs_return <- abs(markov5_df$r_t)
+
+# Remove missing values
+markov5_df <- na.omit(markov5_df)
+
+# Make sure states are ordered correctly
+state_levels <- c("Very Low", "Low", "Medium", "High", "Extreme")
+
+markov5_df$state_t <- factor(markov5_df$state_t, levels = state_levels)
+markov5_df$state_tp1 <- factor(markov5_df$state_tp1, levels = state_levels)
+markov5_df$return_sign <- factor(markov5_df$return_sign)
+
+
+# ============================================================
+# 2. Transition matrices conditional on return sign
+# ============================================================
+
+tab5 <- xtabs(~ state_t + return_sign + state_tp1, data = markov5_df)
+
+prob5 <- prop.table(tab5, margin = c(1, 2))
+
+cat("\n====================================================\n")
+cat(" 5-STATE CONDITIONAL TRANSITION PROBABILITIES\n")
+cat("====================================================\n")
+
+cat("\nP(S[t+1] = j | S[t] = i, Return is Negative)\n\n")
+print(round(prob5[, "Negative", ], 3))
+
+cat("\n----------------------------------------------------\n")
+
+cat("\nP(S[t+1] = j | S[t] = i, Return is Positive or Zero)\n\n")
+print(round(prob5[, "Positive_or_Zero", ], 3))
+
+cat("\n====================================================\n")
+cat(" RAW TRANSITION COUNTS\n")
+cat("====================================================\n")
+
+cat("\nCounts conditional on Negative returns:\n\n")
+print(tab5[, "Negative", ])
+
+cat("\nCounts conditional on Positive or Zero returns:\n\n")
+print(tab5[, "Positive_or_Zero", ])
+
+
+
+neg_matrix <- round(prob5[, "Negative", ], 3)
+pos_matrix <- round(prob5[, "Positive_or_Zero", ], 3)
+library(knitr)
+kable(
+  neg_matrix,
+  caption = "Transition probabilities conditional on negative returns"
+)
+
+kable(
+  pos_matrix,
+  caption = "Transition probabilities conditional on positive or zero returns"
+)
+
+
+# ============================================================
+# 3. Multinomial logistic regression
+# ============================================================
+
+# Model: next volatility state depends on current state,
+# return sign, and absolute return size
+
+multi_logit <- multinom(
+  state_tp1 ~ state_t + return_sign + abs_return,
+  data = markov5_df,
+  trace = FALSE
+)
+
+cat("\n====================================================\n")
+cat(" MULTINOMIAL LOGISTIC REGRESSION RESULTS\n")
+cat("====================================================\n\n")
+
+summary_multi <- summary(multi_logit)
+
+print(summary_multi)
+
+# ============================================================
+# 4. Approximate z-statistics and p-values
+# ============================================================
+
+coefs <- summary_multi$coefficients
+ses   <- summary_multi$standard.errors
+
+print(coefs)
+
+
+z_vals <- coefs / ses
+p_vals <- 2 * (1 - pnorm(abs(z_vals)))
+
+cat("\n====================================================\n")
+cat(" APPROXIMATE P-VALUES\n")
+cat("====================================================\n\n")
+
+print(round(p_vals, 4))
+
+
+# ============================================================
+# 5. Predicted probabilities example
+# ============================================================
+
+example_data <- data.frame(
+  state_t = factor(
+    c("Low", "Low"),
+    levels = state_levels
+  ),
+  return_sign = factor(
+    c("Negative", "Positive_or_Zero"),
+    levels = levels(markov5_df$return_sign)
+  ),
+  abs_return = mean(markov5_df$abs_return, na.rm = TRUE)
+)
+
+pred_probs <- predict(
+  multi_logit,
+  newdata = example_data,
+  type = "probs"
+)
+
+rownames(pred_probs) <- c(
+  "Current Low + Negative Return",
+  "Current Low + Positive/Zero Return"
+)
+
+cat("\n====================================================\n")
+cat(" PREDICTED NEXT-STATE PROBABILITIES\n")
+cat("====================================================\n\n")
+
+print(round(pred_probs, 3))
+
+
+
+
+
+#The coolest graphs ever! 
+
+library(ggplot2)
+install.packages("ggplot2")
+install.packages("ggplot")
+
+#install.packages("reshape2")
+library(reshape2)
+install.packages("ggthemes")
+library(ggthemes)
+
+diff_matrix <- prob5[, "Negative", ] - prob5[, "Positive_or_Zero", ]
+
+diff_df <- melt(diff_matrix)
+colnames(diff_df) <- c("Current_State", "Next_State", "Difference")
+
+
+ggplot(diff_df, aes(x = Next_State, y = Current_State, fill = Difference)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Difference, 3)), size = 4) +
+  scale_fill_gradient2(
+    low = "lightblue",
+    mid = "white",
+    high ="red",
+    midpoint = 0
+  ) +
+  labs(
+    title = "Leverage Asymmetry in Volatility Regime Transitions",
+    subtitle = "Difference: P(next state | negative return) - P(next state | non-negative return)",
+    x = "Next Volatility State",
+    y = "Current Volatility State",
+    fill = "Difference"
+  ) +
+  theme_excel()
+
+neg_df <- melt(prob5[, "Negative", ])
+pos_df <- melt(prob5[, "Positive_or_Zero", ])
+
+neg_df$return_sign <- "Negative return"
+pos_df$return_sign <- "Positive / zero return"
+
+plot_df <- rbind(neg_df, pos_df)
+colnames(plot_df)[1:3] <- c("Current_State", "Next_State", "Probability")
+
+ggplot(plot_df, aes(x = Next_State, y = Current_State, fill = Probability)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Probability, 2)), size = 3.5) +
+  facet_wrap(~ return_sign) +
+  labs(
+    title = "Volatility Regime Transition Matrices by Return Sign",
+    x = "Next Volatility State",
+    y = "Current Volatility State",
+    fill = "Probability"
+  ) +
+  theme_void()
+
+# Probability of moving to High or Extreme next state
+markov5_df$upper_next <- markov5_df$state_tp1 %in% c("High", "Extreme")
+
+upper_prob <- aggregate(
+  upper_next ~ state_t + return_sign,
+  data = markov5_df,
+  FUN = mean
+)
+
+ggplot(upper_prob, aes(x = state_t, y = upper_next, fill = return_sign)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Probability of Moving to High or Extreme Volatility",
+    x = "Current Volatility State",
+    y = "Probability",
+    fill = "Return Sign"
+  ) +
+  theme_minimal()
+
+
+
+
+pred_df <- as.data.frame(pred_probs)
+pred_df$Scenario <- rownames(pred_probs)
+
+pred_long <- reshape2::melt(pred_df, id.vars = "Scenario")
+colnames(pred_long) <- c("Scenario", "Next_State", "Probability")
+
+ggplot(pred_long, aes(x = Next_State, y = Probability, fill = Scenario)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Predicted Next-State Probabilities from Multinomial Logit",
+    x = "Next Volatility State",
+    y = "Predicted Probability"
+  ) +
+  theme_minimal()
+
+
+
+
+# 5 group - > RV splits for regime-like transition probabilities 
+
+# --------------------------
+# RV plot with 5 variance groups
+# --------------------------
+
+rv <- as.numeric(df_init$`RV5_SS × 10^4`)
+
+# Quintile breakpoints: 0%, 20%, 40%, 60%, 80%, 100%
+rv_breaks <- quantile(rv, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+state_labels <- c("Very Low", "Low", "Medium", "High", "Extreme")
+
+rv_state <- cut(
+  rv,
+  breaks = rv_breaks,
+  include.lowest = TRUE,
+  labels = state_labels
+)
+
+# Print split definitions
+cat("\n============================================\n")
+cat(" REALISED VARIANCE STATE DEFINITIONS\n")
+cat("============================================\n\n")
+
+for (i in 1:length(state_labels)) {
+  cat(
+    state_labels[i], ": ",
+    round(rv_breaks[i], 4), " to ",
+    round(rv_breaks[i + 1], 4), "\n",
+    sep = ""
+  )
+}
+
+cat("\nObservations per state:\n")
+print(table(rv_state))
+
+# Plot
+state_cols <- c(
+  "Very Low" = "darkblue",
+  "Low"      = "skyblue",
+  "Medium"   = "gold",
+  "High"     = "orange",
+  "Extreme"  = "red"
+)
+
+plot(
+  df_init$Date,
+  rv,
+  col = state_cols[as.character(rv_state)],
+  pch = 20,
+  xlab = "Date",
+  ylab = "RV5_SS × 10^4",
+  main = "Realised Variance Split into Five Volatility States"
+)
+
+# Add horizontal split lines
+abline(h = rv_breaks[2:5], lty = 2, col = "black")
+
+legend(
+  "topright",
+  legend = state_labels,
+  col = state_cols[state_labels],
+  pch = 20,
+  title = "Volatility State",
+  cex = 0.8
+)
+
+
+
+plot(
+  df_init$Date,
+  log(rv + 1e-6),
+  col = state_cols[as.character(rv_state)],
+  pch = 20,
+  xlab = "Date",
+  ylab = "log(RV5_SS × 10^4)",
+  main = "Realised Variance States on Log Scale"
+)
+
+abline(h = log(rv_breaks[2:5] + 1e-6), lty = 2, col = "black")
+
+legend(
+  "topright",
+  legend = state_labels,
+  col = state_cols[state_labels],
+  pch = 20,
+  title = "Volatility State",
+  cex = 0.8
+)
+
+
+#--------Regime Graphs -- end 
+
+
+
+#--------------------------GARCH SETUP --------------------------
+
 
 
 garch11 <- function(par, rt, mu) {
@@ -866,7 +1337,7 @@ DUMMYRTgjr_garch <- function(par, rt, mu, DUM) {
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
       phi1 < 0 || phi2 < 0 ||
       beta + phi_bar + alpha_bar + delta*mean(DUM) - (alpha_bar + delta*mean(DUM))*phi_bar + 3/2*(alpha1*phi1 + alpha2*phi2) + 3*delta*mean(DUM)*phi_bar >= 1) return(1e10)
-
+  
   T <- length(rt)
   h <- numeric(T)
   h[1] <- omega / (1 - beta - phi_bar - alpha_bar - delta*mean(DUM) + (alpha_bar + delta*mean(DUM))*phi_bar - 3/2*(alpha1*phi1 + alpha2*phi2) - 3*delta*mean(DUM)*phi_bar)
@@ -941,7 +1412,7 @@ T <- length(rt)
 
 FischerGARCH <- matrix(0,3,3)
 for (i in 1:T){
-
+  
   ObsLL <- function(par) {
     
     omega <- par[1]
@@ -953,7 +1424,7 @@ for (i in 1:T){
     # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
     h[1] <- omega/(1-alpha-beta)
     
-
+    
     
     
     if (i > 1){
@@ -978,7 +1449,7 @@ CovGARCH <- solve(FischerGARCH)
 tStats_GARCh <- c(omega = garch_fit$par[1]/sqrt(CovGARCH[1,1]),
                   alpha = garch_fit$par[2]/sqrt(CovGARCH[2,2]),
                   beta = garch_fit$par[3]/sqrt(CovGARCH[3,3])
-                  )
+)
 print(tStats_GARCh)
 
 ## GJR-Garch model
@@ -1025,9 +1496,9 @@ for (i in 1:T){
 
 CovGJRGARCH <- solve(FischerGARCH)
 tStats_GJRGARCh <- c(omega = gjr_fit$par[1]/sqrt(CovGJRGARCH[1,1]),
-                  alpha1 = gjr_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
-                  alpha2 = gjr_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
-                  beta = gjr_fit$par[4]/sqrt(CovGJRGARCH[4,4])
+                     alpha1 = gjr_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
+                     alpha2 = gjr_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
+                     beta = gjr_fit$par[4]/sqrt(CovGJRGARCH[4,4])
 )
 print(tStats_GJRGARCh)
 
@@ -1069,9 +1540,9 @@ for (i in 2:T){
 
 CovRTGARCH <- solve(FischerGARCH)
 tStats_RTGARCH <- c(omega = RTgarch_fit$par[1]/sqrt(CovRTGARCH[1,1]),
-                     alpha = RTgarch_fit$par[2]/sqrt(CovRTGARCH[2,2]),
-                     beta = RTgarch_fit$par[3]/sqrt(CovRTGARCH[3,3]),
-                     phi = RTgarch_fit$par[4]/sqrt(CovRTGARCH[4,4])
+                    alpha = RTgarch_fit$par[2]/sqrt(CovRTGARCH[2,2]),
+                    beta = RTgarch_fit$par[3]/sqrt(CovRTGARCH[3,3]),
+                    phi = RTgarch_fit$par[4]/sqrt(CovRTGARCH[4,4])
 )
 print(tStats_RTGARCH)
 
@@ -1119,11 +1590,11 @@ for (i in 2:T){
 
 CovRTGJRGARCH <- solve(FischerGARCH)
 tStats_RTGJRGARCH <- c(omega = RTgjr_fit$par[1]/sqrt(CovRTGJRGARCH[1,1]),
-                    alpha1 = RTgjr_fit$par[2]/sqrt(CovRTGJRGARCH[2,2]),
-                    alpha2 = RTgjr_fit$par[3]/sqrt(CovRTGJRGARCH[3,3]),
-                    beta = RTgjr_fit$par[4]/sqrt(CovRTGJRGARCH[4,4]),
-                    phi1 = RTgjr_fit$par[5]/sqrt(CovRTGJRGARCH[5,5]),
-                    phi2 = RTgjr_fit$par[6]/sqrt(CovRTGJRGARCH[6,6])
+                       alpha1 = RTgjr_fit$par[2]/sqrt(CovRTGJRGARCH[2,2]),
+                       alpha2 = RTgjr_fit$par[3]/sqrt(CovRTGJRGARCH[3,3]),
+                       beta = RTgjr_fit$par[4]/sqrt(CovRTGJRGARCH[4,4]),
+                       phi1 = RTgjr_fit$par[5]/sqrt(CovRTGJRGARCH[5,5]),
+                       phi2 = RTgjr_fit$par[6]/sqrt(CovRTGJRGARCH[6,6])
 )
 print(tStats_RTGJRGARCH)
 
@@ -1171,9 +1642,9 @@ for (i in 1:T){
 
 CovDUMMYGARCH <- solve(FischerGARCH)
 tStats_DUMMYGARCh <- c(omega = Dummygarch_fit$par[1]/sqrt(CovDUMMYGARCH[1,1]),
-                        alpha = Dummygarch_fit$par[2]/sqrt(CovDUMMYGARCH[2,2]),
-                        beta = Dummygarch_fit$par[3]/sqrt(CovDUMMYGARCH[3,3]),
-                        delta = Dummygarch_fit$par[4]/sqrt(CovDUMMYGARCH[4,4])
+                       alpha = Dummygarch_fit$par[2]/sqrt(CovDUMMYGARCH[2,2]),
+                       beta = Dummygarch_fit$par[3]/sqrt(CovDUMMYGARCH[3,3]),
+                       delta = Dummygarch_fit$par[4]/sqrt(CovDUMMYGARCH[4,4])
 )
 print(tStats_DUMMYGARCh)
 
@@ -1222,10 +1693,10 @@ for (i in 1:T){
 
 CovDUMMYGJRGARCH <- solve(FischerGARCH)
 tStats_DUMMYGJRGARCh <- c(omega = Dummygjr_fit$par[1]/sqrt(CovGJRGARCH[1,1]),
-                     alpha1 = Dummygjr_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
-                     alpha2 = Dummygjr_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
-                     beta = Dummygjr_fit$par[4]/sqrt(CovGJRGARCH[4,4]),
-                     delta = Dummygjr_fit$par[5]/sqrt(CovDUMMYGJRGARCH[5,5])
+                          alpha1 = Dummygjr_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
+                          alpha2 = Dummygjr_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
+                          beta = Dummygjr_fit$par[4]/sqrt(CovGJRGARCH[4,4]),
+                          delta = Dummygjr_fit$par[5]/sqrt(CovDUMMYGJRGARCH[5,5])
 )
 print(tStats_DUMMYGJRGARCh)
 
@@ -1268,10 +1739,10 @@ for (i in 2:T){
 
 CovDUMMYRTGARCH <- solve(FischerGARCH)
 tStats_DUMMYRTGARCH <- c(omega = DummyRTgarch_fit$par[1]/sqrt(CovDUMMYRTGARCH[1,1]),
-                    alpha = DummyRTgarch_fit$par[2]/sqrt(CovDUMMYRTGARCH[2,2]),
-                    beta = DummyRTgarch_fit$par[3]/sqrt(CovDUMMYRTGARCH[3,3]),
-                    phi = DummyRTgarch_fit$par[4]/sqrt(CovDUMMYRTGARCH[4,4]),
-                    delta = DummyRTgarch_fit$par[5]/sqrt(CovDUMMYRTGARCH[5,5])
+                         alpha = DummyRTgarch_fit$par[2]/sqrt(CovDUMMYRTGARCH[2,2]),
+                         beta = DummyRTgarch_fit$par[3]/sqrt(CovDUMMYRTGARCH[3,3]),
+                         phi = DummyRTgarch_fit$par[4]/sqrt(CovDUMMYRTGARCH[4,4]),
+                         delta = DummyRTgarch_fit$par[5]/sqrt(CovDUMMYRTGARCH[5,5])
 )
 print(tStats_DUMMYRTGARCH)
 
@@ -1320,12 +1791,12 @@ for (i in 2:T){
 
 CovDUMMYRTGJRGARCH <- solve(FischerGARCH)
 tStats_DUMMYRTGJRGARCH <- c(omega = DummyRTgarchGJR_fit$par[1]/sqrt(CovDUMMYRTGJRGARCH[1,1]),
-                       alpha1 = DummyRTgarchGJR_fit$par[2]/sqrt(CovDUMMYRTGJRGARCH[2,2]),
-                       alpha2 = DummyRTgarchGJR_fit$par[3]/sqrt(CovDUMMYRTGJRGARCH[3,3]),
-                       beta = DummyRTgarchGJR_fit$par[4]/sqrt(CovDUMMYRTGJRGARCH[4,4]),
-                       phi1 = DummyRTgarchGJR_fit$par[5]/sqrt(CovDUMMYRTGJRGARCH[5,5]),
-                       phi2 = DummyRTgarchGJR_fit$par[6]/sqrt(CovDUMMYRTGJRGARCH[6,6]),
-                       delta = DummyRTgarchGJR_fit$par[7]/sqrt(CovDUMMYRTGJRGARCH[7,7])
+                            alpha1 = DummyRTgarchGJR_fit$par[2]/sqrt(CovDUMMYRTGJRGARCH[2,2]),
+                            alpha2 = DummyRTgarchGJR_fit$par[3]/sqrt(CovDUMMYRTGJRGARCH[3,3]),
+                            beta = DummyRTgarchGJR_fit$par[4]/sqrt(CovDUMMYRTGJRGARCH[4,4]),
+                            phi1 = DummyRTgarchGJR_fit$par[5]/sqrt(CovDUMMYRTGJRGARCH[5,5]),
+                            phi2 = DummyRTgarchGJR_fit$par[6]/sqrt(CovDUMMYRTGJRGARCH[6,6]),
+                            delta = DummyRTgarchGJR_fit$par[7]/sqrt(CovDUMMYRTGJRGARCH[7,7])
 )
 print(tStats_RTGJRGARCH)
 
@@ -1802,50 +2273,50 @@ crisis_2 <- 1212:1597
 
 # GJR-GARCH vs RT-GJR-GARCH
 dm_RV_c1_gjr_rt  <- dm.test((TV_rv[crisis_1] - PV_GARCHGJR[crisis_1]), 
-                         (TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), alternative = "two.sided")
+                            (TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), alternative = "two.sided")
 
 # RT-GJR-GARCH vs HAR-RV Baseline
 dm_RV_c1_rt_har  <- dm.test((TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
-                         (TV_rv[crisis_1] - PV_HAR_RV[crisis_1]), alternative = "two.sided")
+                            (TV_rv[crisis_1] - PV_HAR_RV[crisis_1]), alternative = "two.sided")
 
 # RT-GJR-GARCH vs VIX Baseline
 dm_RV_c1_rt_vix  <- dm.test((TV_rv[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
-                         (TV_rv[crisis_1] - PV_VIX[crisis_1]), alternative = "two.sided")
+                            (TV_rv[crisis_1] - PV_VIX[crisis_1]), alternative = "two.sided")
 
 
 
 #calm (2023 to september 2024)
 
 dm_RV_calm_gjr_rt <- dm.test((TV_rv[calm] - PV_GARCHGJR[calm]), 
-                          (TV_rv[calm] - PV_RTGARCHGJR[calm]), alternative = "two.sided")
+                             (TV_rv[calm] - PV_RTGARCHGJR[calm]), alternative = "two.sided")
 
 dm_RV_calm_rt_har <- dm.test((TV_rv[calm] - PV_RTGARCHGJR[calm]), 
-                          (TV_rv[calm] - PV_HAR_RV[calm]), alternative = "two.sided")
+                             (TV_rv[calm] - PV_HAR_RV[calm]), alternative = "two.sided")
 
 dm_RV_calm_rt_vix <- dm.test((TV_rv[calm] - PV_RTGARCHGJR[calm]), 
-                          (TV_rv[calm] - PV_VIX[calm]), alternative = "two.sided")
+                             (TV_rv[calm] - PV_VIX[calm]), alternative = "two.sided")
 
 
 
 #Crisis 2 (starting october 2024)
 dm_RV_c2_gjr_rt  <- dm.test((TV_rv[crisis_2] - PV_GARCHGJR[crisis_2]), 
-                         (TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), alternative = "two.sided")
+                            (TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), alternative = "two.sided")
 
 dm_RV_c2_rt_har  <- dm.test((TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
-                         (TV_rv[crisis_2] - PV_HAR_RV[crisis_2]), alternative = "two.sided")
+                            (TV_rv[crisis_2] - PV_HAR_RV[crisis_2]), alternative = "two.sided")
 
 dm_RV_c2_rt_vix  <- dm.test((TV_rv[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
-                         (TV_rv[crisis_2] - PV_VIX[crisis_2]), alternative = "two.sided")
+                            (TV_rv[crisis_2] - PV_VIX[crisis_2]), alternative = "two.sided")
 
 #entire evaluation window
 dm_RV_gjr_rt  <- dm.test((TV_rv - PV_GARCHGJR), 
-                      (TV_rv - PV_RTGARCHGJR), alternative = "two.sided")
+                         (TV_rv - PV_RTGARCHGJR), alternative = "two.sided")
 
 dm_RV_rt_har  <- dm.test((TV_rv - PV_RTGARCHGJR), 
-                      (TV_rv - PV_HAR_RV), alternative = "two.sided")
+                         (TV_rv - PV_HAR_RV), alternative = "two.sided")
 
 dm_RV_rt_vix  <- dm.test((TV_rv - PV_RTGARCHGJR), 
-                      (TV_rv - PV_VIX), alternative = "two.sided")
+                         (TV_rv - PV_VIX), alternative = "two.sided")
 
 #Results
 print("ENTIRE WINDOW")
@@ -1873,50 +2344,50 @@ print(dm_RV_c2_rt_vix)
 
 # GJR-GARCH vs RT-GJR-GARCH
 dm_R_c1_gjr_rt  <- dm.test((TV_r[crisis_1] - PV_GARCHGJR[crisis_1]), 
-                            (TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), alternative = "two.sided")
+                           (TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), alternative = "two.sided")
 
 # RT-GJR-GARCH vs HAR-RV Baseline
 dm_R_c1_rt_har  <- dm.test((TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
-                            (TV_r[crisis_1] - PV_HAR_RV[crisis_1]), alternative = "two.sided")
+                           (TV_r[crisis_1] - PV_HAR_RV[crisis_1]), alternative = "two.sided")
 
 # RT-GJR-GARCH vs VIX Baseline
 dm_R_c1_rt_vix  <- dm.test((TV_r[crisis_1] - PV_RTGARCHGJR[crisis_1]), 
-                            (TV_r[crisis_1] - PV_VIX[crisis_1]), alternative = "two.sided")
+                           (TV_r[crisis_1] - PV_VIX[crisis_1]), alternative = "two.sided")
 
 
 
 #calm (2023 to september 2024)
 
 dm_R_calm_gjr_rt <- dm.test((TV_r[calm] - PV_GARCHGJR[calm]), 
-                             (TV_r[calm] - PV_RTGARCHGJR[calm]), alternative = "two.sided")
+                            (TV_r[calm] - PV_RTGARCHGJR[calm]), alternative = "two.sided")
 
 dm_R_calm_rt_har <- dm.test((TV_r[calm] - PV_RTGARCHGJR[calm]), 
-                             (TV_r[calm] - PV_HAR_RV[calm]), alternative = "two.sided")
+                            (TV_r[calm] - PV_HAR_RV[calm]), alternative = "two.sided")
 
 dm_R_calm_rt_vix <- dm.test((TV_r[calm] - PV_RTGARCHGJR[calm]), 
-                             (TV_r[calm] - PV_VIX[calm]), alternative = "two.sided")
+                            (TV_r[calm] - PV_VIX[calm]), alternative = "two.sided")
 
 
 
 #Crisis 2 (starting october 2024)
 dm_R_c2_gjr_rt  <- dm.test((TV_r[crisis_2] - PV_GARCHGJR[crisis_2]), 
-                            (TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), alternative = "two.sided")
+                           (TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), alternative = "two.sided")
 
 dm_R_c2_rt_har  <- dm.test((TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
-                            (TV_r[crisis_2] - PV_HAR_RV[crisis_2]), alternative = "two.sided")
+                           (TV_r[crisis_2] - PV_HAR_RV[crisis_2]), alternative = "two.sided")
 
 dm_R_c2_rt_vix  <- dm.test((TV_r[crisis_2] - PV_RTGARCHGJR[crisis_2]), 
-                            (TV_r[crisis_2] - PV_VIX[crisis_2]), alternative = "two.sided")
+                           (TV_r[crisis_2] - PV_VIX[crisis_2]), alternative = "two.sided")
 
 #entire evaluation window
 dm_R_gjr_rt  <- dm.test((TV_r - PV_GARCHGJR), 
-                         (TV_r - PV_RTGARCHGJR), alternative = "two.sided")
+                        (TV_r - PV_RTGARCHGJR), alternative = "two.sided")
 
 dm_R_rt_har  <- dm.test((TV_r - PV_RTGARCHGJR), 
-                         (TV_r - PV_HAR_RV), alternative = "two.sided")
+                        (TV_r - PV_HAR_RV), alternative = "two.sided")
 
 dm_R_rt_vix  <- dm.test((TV_r - PV_RTGARCHGJR), 
-                         (TV_r - PV_VIX), alternative = "two.sided")
+                        (TV_r - PV_VIX), alternative = "two.sided")
 
 #Results
 print("ENTIRE WINDOW")
@@ -1951,50 +2422,50 @@ qlike_loss <- function(TV, PV) {
 #crisis 1
 # GJR-GARCH vs RT-GJR-GARCH
 qdm_RV_c1_gjr_rt  <- dm.test(qlike_loss(TV_rv[crisis_1], PV_GARCHGJR[crisis_1]), 
-                            qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), alternative = "two.sided", h = 1)
+                             qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), alternative = "two.sided", h = 1)
 
 # RT-GJR-GARCH vs HAR-RV Baseline
 qdm_RV_c1_rt_har  <- dm.test(qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), 
-                            qlike_loss(TV_rv[crisis_1] , PV_HAR_RV[crisis_1]), alternative = "two.sided", h = 1)
+                             qlike_loss(TV_rv[crisis_1] , PV_HAR_RV[crisis_1]), alternative = "two.sided", h = 1)
 
 # RT-GJR-GARCH vs VIX Baseline
 qdm_RV_c1_rt_vix  <- dm.test(qlike_loss(TV_rv[crisis_1] , PV_RTGARCHGJR[crisis_1]), 
-                            qlike_loss(TV_rv[crisis_1] , PV_VIX[crisis_1]), alternative = "two.sided", h = 1)
+                             qlike_loss(TV_rv[crisis_1] , PV_VIX[crisis_1]), alternative = "two.sided", h = 1)
 
 
 
 #calm (2023 to september 2024)
 
 qdm_RV_calm_gjr_rt <- dm.test(qlike_loss(TV_rv[calm] , PV_GARCHGJR[calm]), 
-                             qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), alternative = "two.sided", h = 1)
+                              qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), alternative = "two.sided", h = 1)
 
 qdm_RV_calm_rt_har <- dm.test(qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), 
-                             qlike_loss(TV_rv[calm] , PV_HAR_RV[calm]), alternative = "two.sided", h = 1)
+                              qlike_loss(TV_rv[calm] , PV_HAR_RV[calm]), alternative = "two.sided", h = 1)
 
 qdm_RV_calm_rt_vix <- dm.test(qlike_loss(TV_rv[calm] , PV_RTGARCHGJR[calm]), 
-                             qlike_loss(TV_rv[calm] , PV_VIX[calm]), alternative = "two.sided", h = 1)
+                              qlike_loss(TV_rv[calm] , PV_VIX[calm]), alternative = "two.sided", h = 1)
 
 
 
 #Crisis 2 (starting october 2024)
 qdm_RV_c2_gjr_rt  <- dm.test(qlike_loss(TV_rv[crisis_2] , PV_GARCHGJR[crisis_2]), 
-                            qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), alternative = "two.sided", h = 1)
+                             qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), alternative = "two.sided", h = 1)
 
 qdm_RV_c2_rt_har  <- dm.test(qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), 
-                            qlike_loss(TV_rv[crisis_2] , PV_HAR_RV[crisis_2]), alternative = "two.sided", h = 1)
+                             qlike_loss(TV_rv[crisis_2] , PV_HAR_RV[crisis_2]), alternative = "two.sided", h = 1)
 
 qdm_RV_c2_rt_vix  <- dm.test(qlike_loss(TV_rv[crisis_2] , PV_RTGARCHGJR[crisis_2]), 
-                            qlike_loss(TV_rv[crisis_2] , PV_VIX[crisis_2]), alternative = "two.sided", h = 1)
+                             qlike_loss(TV_rv[crisis_2] , PV_VIX[crisis_2]), alternative = "two.sided", h = 1)
 
 #entire evaluation window
 qdm_RV_gjr_rt  <- dm.test(qlike_loss(TV_rv , PV_GARCHGJR), 
-                         qlike_loss(TV_rv , PV_RTGARCHGJR), alternative = "two.sided", h = 1)
+                          qlike_loss(TV_rv , PV_RTGARCHGJR), alternative = "two.sided", h = 1)
 
 qdm_RV_rt_har  <- dm.test(qlike_loss(TV_rv , PV_RTGARCHGJR), 
-                         qlike_loss(TV_rv , PV_HAR_RV), alternative = "two.sided", h = 1)
+                          qlike_loss(TV_rv , PV_HAR_RV), alternative = "two.sided", h = 1)
 
 qdm_RV_rt_vix  <- dm.test(qlike_loss(TV_rv , PV_RTGARCHGJR), 
-                         qlike_loss(TV_rv , PV_VIX), alternative = "two.sided", h = 1)
+                          qlike_loss(TV_rv , PV_VIX), alternative = "two.sided", h = 1)
 
 #Results
 print("ENTIRE WINDOW")
