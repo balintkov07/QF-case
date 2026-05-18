@@ -4,7 +4,7 @@ library("readxl")
 
 #For skewness & kurtosis analysis
 install.packages("GGally")
-library("GGally")
+library(GGally)
 
 install.packages("e1071")
 library(e1071)
@@ -14,20 +14,20 @@ library(tidyr)
 #--------------------------DATA PROCESSING --------------------------
 
 # Janek:
-# df_init <- read_excel("/Users/janekczajnik/Desktop/Erasmus/B3/Introductory Seminar CS/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+df_init <- read_excel("/Users/janekczajnik/Desktop/Erasmus/B3/Introductory Seminar CS/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Balint
 #df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
+#setwd("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data")
 
 #Filip
 #df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
 
-df_init <- read_excel("data.xlsx")[-1, ]
+#df_init <- read_excel("data.xlsx")[-1, ]
 
 #Divide the days into positive, negative or zero returns 
 df_pos <- df_init[df_init$`CC Return (%)` > 0, ]
@@ -43,10 +43,63 @@ print(cat(("| Number of Positive Days: "), nrow(df_pos), ("| Number of Negative 
 
 #Arbitrary - baseline plots -> Returns, Realized Variance, VIX
 plot(df_init$`CC Return (%)`)
-plot(df_init$`RV5_SS × 10^4`)
-plot(df_init$VIX)
+plot(df_init$`RV5_SS × 10^4`, 
+     ylab = "RV5_SS x 10^4",
+     main = "Realized Variance, daily 2009 - 2026")
 
 
+plot(df_init$VIX, 
+     ylab = "VIX price",
+     main = "VIX")
+
+
+
+# Pretty Graphs - > CC return, rv5, vix
+
+
+plot(
+  df_init$Date,
+  df_init$`CC Return (%)`,
+  col = ifelse(df_init$`CC Return (%)` < 0, "blue", "red"),
+  pch = 20,
+  xlab = "Date",
+  ylab = "CC Return",
+  main = "Close to Close Returns (daily 2009 - 2026, in %)"
+)
+
+abline(h = 0, lty = 2, col = "black")
+
+
+threshold_75VIX <- quantile(df_init$VIX, 0.75, na.rm = TRUE)
+
+print(threshold_75VIX)
+
+plot(
+  df_init$Date,
+  df_init$VIX,
+  col = ifelse(df_init$VIX < 21.3175, "black", "black"),
+  pch = 20,
+  xlab = "Date",
+  ylab = "VIX",
+  main = "VIX (daily 2009 - 2026, in %)"
+)
+
+abline(h = 21.3175, lty = 2, col = "black")
+
+threshold_75rv <- quantile(df_init$`RV5_SS × 10^4`, 0.75, na.rm = TRUE)
+print(threshold_75rv)
+
+plot(
+  df_init$Date,
+  df_init$`RV5_SS × 10^4`,
+  col = ifelse(df_init$`RV5_SS × 10^4` < 1.074468, "blue", "red"),
+  pch = 20,
+  xlab = "Date",
+  ylab = "RV",
+  main = "RV (daily 2009 - 2026, in %)"
+)
+
+abline(h = 1.074468, lty = 2, col = "black")
 
 #Baseline summary statistics of key variables
 summary(df_init$`CC Return (%)`)
@@ -56,13 +109,428 @@ print(cat(("Skewness and Kurtosis (respectively) for Close to Close returns"), s
 print(cat(("Skewness and Kurtosis (respectively) for Realized variance * 10^4"), skewness(df_init$`RV5_SS × 10^4`), kurtosis(df_init$`RV5_SS × 10^4`)))
 print(cat(("Skewness and Kurtosis (respectively) for VIX index"), skewness(df_init$VIX), kurtosis(df_init$VIX)))
 
-#--------------------------GARCH SETUP --------------------------
+#-----Discrete state space transition probabilities, complement Garch using changes in regimes. 
+
 rt <- as.numeric(df_init$`CC Return (%)`)
+rv <- as.numeric(df_init$`RV5_SS × 10^4`)
 mu <- mean(rt)
 T <- length(rt)
 
 
+#lag-safe threshold -> top 25% realised variance = high-vol state
+threshold <- quantile(rv, 0.75, na.rm = TRUE)
 
+state <- ifelse(rv > threshold, "H", "L")
+
+markov_df <- data.frame(
+  state_t   = state[-length(state)],
+  state_tp1 = state[-1],
+  r_t       = rt[-length(r)]
+)
+
+
+markov_df$return_sign <- ifelse(markov_df$r_t < 0, "negative", "positive_or_zero")
+
+# Conditional transition probabilities:
+tab <- xtabs(~ state_t + return_sign + state_tp1, data = markov_df)
+
+prob <- prop.table(tab, margin = c(1, 2))
+
+prob[, , "H"]
+prob[, , "L"]
+
+head(tab)
+
+
+#__Markov Printing__
+high_tbl <- round(prob[, , "H"], 3)
+low_tbl  <- round(prob[, , "L"], 3)
+
+colnames(high_tbl) <- c("Negative Return", "Positive / Zero Return")
+rownames(high_tbl) <- c("Current State: High", "Current State: Low")
+
+colnames(low_tbl) <- c("Negative Return", "Positive / Zero Return")
+rownames(low_tbl) <- c("Current State: High", "Current State: Low")
+
+library(knitr)
+
+kable(high_tbl,
+      caption = "Probability of Transitioning to High-Volatility State")
+
+kable(low_tbl,
+      caption = "Probability of Transitioning to Low-Volatility State")
+
+
+
+
+# ============================================================
+# 5-STATE VOLATILITY REGIME EXTENSION
+# ============================================================
+
+#install.packages("nnet")
+library(nnet)
+
+# ----------------------------
+# 1. Define variables
+# ----------------------------
+
+rv <- as.numeric(df_init$`RV5_SS × 10^4`)
+r  <- as.numeric(df_init$`CC Return (%)`)
+
+# Create 5 volatility states using quintiles of realised variance
+q <- quantile(rv, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+vol_state <- cut(
+  rv,
+  breaks = q,
+  include.lowest = TRUE,
+  labels = c("Very Low", "Low", "Medium", "High", "Extreme")
+)
+
+# Build transition dataset
+markov5_df <- data.frame(
+  state_t   = vol_state[-length(vol_state)],
+  state_tp1 = vol_state[-1],
+  r_t       = r[-length(r)]
+)
+
+markov5_df$return_sign <- ifelse(
+  markov5_df$r_t < 0,
+  "Negative",
+  "Positive_or_Zero"
+)
+
+markov5_df$abs_return <- abs(markov5_df$r_t)
+
+# Remove missing values
+markov5_df <- na.omit(markov5_df)
+
+# Make sure states are ordered correctly
+state_levels <- c("Very Low", "Low", "Medium", "High", "Extreme")
+
+markov5_df$state_t <- factor(markov5_df$state_t, levels = state_levels)
+markov5_df$state_tp1 <- factor(markov5_df$state_tp1, levels = state_levels)
+markov5_df$return_sign <- factor(markov5_df$return_sign)
+
+
+# ============================================================
+# 2. Transition matrices conditional on return sign
+# ============================================================
+
+tab5 <- xtabs(~ state_t + return_sign + state_tp1, data = markov5_df)
+
+prob5 <- prop.table(tab5, margin = c(1, 2))
+
+cat("\n====================================================\n")
+cat(" 5-STATE CONDITIONAL TRANSITION PROBABILITIES\n")
+cat("====================================================\n")
+
+cat("\nP(S[t+1] = j | S[t] = i, Return is Negative)\n\n")
+print(round(prob5[, "Negative", ], 3))
+
+cat("\n----------------------------------------------------\n")
+
+cat("\nP(S[t+1] = j | S[t] = i, Return is Positive or Zero)\n\n")
+print(round(prob5[, "Positive_or_Zero", ], 3))
+
+cat("\n====================================================\n")
+cat(" RAW TRANSITION COUNTS\n")
+cat("====================================================\n")
+
+cat("\nCounts conditional on Negative returns:\n\n")
+print(tab5[, "Negative", ])
+
+cat("\nCounts conditional on Positive or Zero returns:\n\n")
+print(tab5[, "Positive_or_Zero", ])
+
+
+
+neg_matrix <- round(prob5[, "Negative", ], 3)
+pos_matrix <- round(prob5[, "Positive_or_Zero", ], 3)
+library(knitr)
+kable(
+  neg_matrix,
+  caption = "Transition probabilities conditional on negative returns"
+)
+
+kable(
+  pos_matrix,
+  caption = "Transition probabilities conditional on positive or zero returns"
+)
+
+
+# ============================================================
+# 3. Multinomial logistic regression
+# ============================================================
+
+# Model: next volatility state depends on current state,
+# return sign, and absolute return size
+
+multi_logit <- multinom(
+  state_tp1 ~ state_t + return_sign + abs_return,
+  data = markov5_df,
+  trace = FALSE
+)
+
+cat("\n====================================================\n")
+cat(" MULTINOMIAL LOGISTIC REGRESSION RESULTS\n")
+cat("====================================================\n\n")
+
+summary_multi <- summary(multi_logit)
+
+print(summary_multi)
+
+
+
+# ============================================================
+# 4. Approximate z-statistics and p-values
+# ============================================================
+
+coefs <- summary_multi$coefficients
+ses   <- summary_multi$standard.errors
+
+print(coefs)
+
+
+z_vals <- coefs / ses
+p_vals <- 2 * (1 - pnorm(abs(z_vals)))
+
+cat("\n====================================================\n")
+cat(" APPROXIMATE P-VALUES\n")
+cat("====================================================\n\n")
+
+print(round(p_vals, 4))
+
+
+# ============================================================
+# 5. Predicted probabilities example
+# ============================================================
+
+example_data <- data.frame(
+  state_t = factor(
+    c("Low", "Low"),
+    levels = state_levels
+  ),
+  return_sign = factor(
+    c("Negative", "Positive_or_Zero"),
+    levels = levels(markov5_df$return_sign)
+  ),
+  abs_return = mean(markov5_df$abs_return, na.rm = TRUE)
+)
+
+pred_probs <- predict(
+  multi_logit,
+  newdata = example_data,
+  type = "probs"
+)
+
+rownames(pred_probs) <- c(
+  "Current Low + Negative Return",
+  "Current Low + Positive/Zero Return"
+)
+
+cat("\n====================================================\n")
+cat(" PREDICTED NEXT-STATE PROBABILITIES\n")
+cat("====================================================\n\n")
+
+print(round(pred_probs, 3))
+
+
+
+
+
+#The coolest graphs ever! 
+
+library(ggplot2)
+install.packages("ggplot2")
+install.packages("ggplot")
+
+#install.packages("reshape2")
+library(reshape2)
+install.packages("ggthemes")
+library(ggthemes)
+
+diff_matrix <- prob5[, "Negative", ] - prob5[, "Positive_or_Zero", ]
+
+diff_df <- melt(diff_matrix)
+colnames(diff_df) <- c("Current_State", "Next_State", "Difference")
+
+
+ggplot(diff_df, aes(x = Next_State, y = Current_State, fill = Difference)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Difference, 3)), size = 4) +
+  scale_fill_gradient2(
+    low = "lightblue",
+    mid = "white",
+    high ="red",
+    midpoint = 0
+  ) +
+  labs(
+    title = "Leverage Asymmetry in Volatility Regime Transitions",
+    subtitle = "Difference: P(next state | negative return) - P(next state | non-negative return)",
+    x = "Next Volatility State",
+    y = "Current Volatility State",
+    fill = "Difference"
+  ) +
+  theme_excel()
+
+neg_df <- melt(prob5[, "Negative", ])
+pos_df <- melt(prob5[, "Positive_or_Zero", ])
+
+neg_df$return_sign <- "Negative return"
+pos_df$return_sign <- "Positive / zero return"
+
+plot_df <- rbind(neg_df, pos_df)
+colnames(plot_df)[1:3] <- c("Current_State", "Next_State", "Probability")
+
+ggplot(plot_df, aes(x = Next_State, y = Current_State, fill = Probability)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(Probability, 2)), size = 3.5) +
+  facet_wrap(~ return_sign) +
+  labs(
+    title = "Volatility Regime Transition Matrices by Return Sign",
+    x = "Next Volatility State",
+    y = "Current Volatility State",
+    fill = "Probability"
+  ) +
+  theme_void()
+
+# Probability of moving to High or Extreme next state
+markov5_df$upper_next <- markov5_df$state_tp1 %in% c("High", "Extreme")
+
+upper_prob <- aggregate(
+  upper_next ~ state_t + return_sign,
+  data = markov5_df,
+  FUN = mean
+)
+
+ggplot(upper_prob, aes(x = state_t, y = upper_next, fill = return_sign)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Probability of Moving to High or Extreme Volatility",
+    x = "Current Volatility State",
+    y = "Probability",
+    fill = "Return Sign"
+  ) +
+  theme_minimal()
+
+
+
+
+pred_df <- as.data.frame(pred_probs)
+pred_df$Scenario <- rownames(pred_probs)
+
+pred_long <- reshape2::melt(pred_df, id.vars = "Scenario")
+colnames(pred_long) <- c("Scenario", "Next_State", "Probability")
+
+ggplot(pred_long, aes(x = Next_State, y = Probability, fill = Scenario)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Predicted Next-State Probabilities from Multinomial Logit",
+    x = "Next Volatility State",
+    y = "Predicted Probability"
+  ) +
+  theme_minimal()
+
+
+
+
+# 5 group - > RV splits for regime-like transition probabilities 
+
+# --------------------------
+# RV plot with 5 variance groups
+# --------------------------
+
+rv <- as.numeric(df_init$`RV5_SS × 10^4`)
+
+# Quintile breakpoints: 0%, 20%, 40%, 60%, 80%, 100%
+rv_breaks <- quantile(rv, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+state_labels <- c("Very Low", "Low", "Medium", "High", "Extreme")
+
+rv_state <- cut(
+  rv,
+  breaks = rv_breaks,
+  include.lowest = TRUE,
+  labels = state_labels
+)
+
+# Print split definitions
+cat("\n============================================\n")
+cat(" REALISED VARIANCE STATE DEFINITIONS\n")
+cat("============================================\n\n")
+
+for (i in 1:length(state_labels)) {
+  cat(
+    state_labels[i], ": ",
+    round(rv_breaks[i], 4), " to ",
+    round(rv_breaks[i + 1], 4), "\n",
+    sep = ""
+  )
+}
+
+cat("\nObservations per state:\n")
+print(table(rv_state))
+
+# Plot
+state_cols <- c(
+  "Very Low" = "darkblue",
+  "Low"      = "skyblue",
+  "Medium"   = "gold",
+  "High"     = "orange",
+  "Extreme"  = "red"
+)
+
+plot(
+  df_init$Date,
+  rv,
+  col = state_cols[as.character(rv_state)],
+  pch = 20,
+  xlab = "Date",
+  ylab = "RV5_SS × 10^4",
+  main = "Realised Variance Split into Five Volatility States"
+)
+
+# Add horizontal split lines
+abline(h = rv_breaks[2:5], lty = 2, col = "black")
+
+legend(
+  "topright",
+  legend = state_labels,
+  col = state_cols[state_labels],
+  pch = 20,
+  title = "Volatility State",
+  cex = 0.8
+)
+
+
+
+plot(
+  df_init$Date,
+  log(rv + 1e-6),
+  col = state_cols[as.character(rv_state)],
+  pch = 20,
+  xlab = "Date",
+  ylab = "log(RV5_SS × 10^4)",
+  main = "Realised Variance States on Log Scale"
+)
+
+abline(h = log(rv_breaks[2:5] + 1e-6), lty = 2, col = "black")
+
+legend(
+  "topright",
+  legend = state_labels,
+  col = state_cols[state_labels],
+  pch = 20,
+  title = "Volatility State",
+  cex = 0.8
+)
+
+
+#--------Regime Graphs -- end 
+
+
+#--------------------------GARCH SETUP -------------------------
 garch11 <- function(par, rt, mu) {
   
   omega <- par[1]
@@ -103,6 +571,10 @@ garch11 <- function(par, rt, mu) {
   
   return(garch11ll)
 }
+
+ a = 0.05 / (1- 0.85 - 0.05)
+ print(a)
+
 
 # Starting values
 start_par <- c(
