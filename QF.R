@@ -14,6 +14,7 @@ library(tidyr)
 install.packages("numDeriv")
 library(numDeriv)
 
+install.packages("knitr")
 library(knitr)
 
 install.packages("nnet")
@@ -152,7 +153,7 @@ state <- ifelse(rv > threshold, "H", "L")
 markov_df <- data.frame(
   state_t   = state[-length(state)],
   state_tp1 = state[-1],
-  r_t       = rt[-length(r)]
+  r_t       = rt[-length(rt)]
 )
 
 
@@ -757,9 +758,9 @@ RTgarch11 <- function(par, rt, mu) {
 
 
 start_par_RT <- c(
-  omega = 0.04590705,
-  alpha = 0.19226977 ,
-  beta  = 0.77380626 ,
+  omega = 0.04557794,
+  alpha = 0.19471400,
+  beta  = 0.77334072,
   phi = 0.01
 )
 
@@ -832,10 +833,10 @@ RTgjr_garch <- function(par, rt, mu) {
 
 
 start_par_RTgjr <- c(
-  omega  = 0.04149673,
-  alpha1 = 0.26501891,
-  alpha2 = 0.01882367,
-  beta   = 0.81790257,
+  omega  = 0.04150796,
+  alpha1 = 0.26965124,
+  alpha2 = 0.01997420,
+  beta   = 0.81654904,
   phi1   = 0.015,
   phi2   = 0.005
 )
