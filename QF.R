@@ -23,8 +23,8 @@ library(nnet)
 
 #The coolest graphs ever! 
 
-library(ggplot2)
 install.packages("ggplot2")
+library(ggplot2)
 install.packages("ggplot")
 
 install.packages("reshape2")
@@ -869,10 +869,10 @@ print(c(GARCH    = AIC_GARCH,
         RT_GARCH = AIC_RTGARCH,
         RT_GJR   = AIC_RTgjr))
 
-BIC_GARCH    <- 3*log(T-1) + 2*garch_fit$value      # 3 params
-BIC_GJR      <- 4*log(T-1) + 2*gjr_fit$value        # 4 params
-BIC_RTGARCH  <- 4*log(T-1) + 2*RTgarch_fit$value    # 4 params
-BIC_RTgjr    <- 6*log(T-1) + 2*RTgjr_fit$value      # 6 params
+BIC_GARCH    <- 3*log(T) + 2*garch_fit$value      # 3 params
+BIC_GJR      <- 4*log(T) + 2*gjr_fit$value        # 4 params
+BIC_RTGARCH  <- 4*log(T) + 2*RTgarch_fit$value    # 4 params
+BIC_RTgjr    <- 6*log(T) + 2*RTgjr_fit$value      # 6 params
 
 print(c(GARCH    = BIC_GARCH,
         GJR      = BIC_GJR,
