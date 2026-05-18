@@ -560,7 +560,7 @@ garch11 <- function(par, rt, mu) {
   h <- numeric(T)
   
   # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
-  h[1] <- var(rt)
+  h[1] <- omega / (1-alpha-beta)
   
   if (!is.finite(h[1]) || h[1] <= 0) {
     return(1e10)
@@ -710,56 +710,6 @@ RTgarch11 <- function(par, rt, mu) {
   phi <- par[4]
   
   # Penalize invalid parameter values
-  if (omega <= 0 || alpha < 0 || beta < 0 || phi < 0 || beta + phi >= 1) {
-    return(1e10)
-  }
-  
-  T <- length(rt)
-  h <- numeric(T)
-  
-  # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
-  h[1] <- omega / (1 - beta - phi)
-  
-  if (!is.finite(h[1]) || h[1] <= 0) {
-    return(1e10)
-  }
-  
-  
-  
-  
-  # Generate conditional variances recursively
-  for (t in 1:(T - 1)) {
-    h[t + 1] <- 0.5*(omega + beta*h[t] + alpha*(rt[t] - mu)^2) + 0.5*sqrt((omega + beta*h[t] + alpha*(rt[t] - mu)^2)^2 + 4*phi*h[t]*(rt[t+1] - mu)^2)
-  }
-  
-  # Now check h after it has been generated
-  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
-    return(1e10)
-  }
-  
-  
-  h_tm1 <- h[-T]
-  h <- h[-1]
-  rt <- rt[-1]
-  
-  # Negative log-likelihood
-  RTgarch11ll <- sum(0.5*log(2*pi)+0.5*(rt-mu)^2/h-log(sqrt(h)/(h+phi*h_tm1*(rt-mu)^2/h)))
-  
-  
-  if (!is.finite(RTgarch11ll)) {
-    return(1e10)
-  }
-  
-  return(RTgarch11ll)
-}
-
-EXPANDEDRTgarch11 <- function(par, rt, mu) {
-  omega <- par[1]
-  alpha <- par[2]
-  beta  <- par[3]
-  phi <- par[4]
-  
-  # Penalize invalid parameter values
   if (omega <= 0 || alpha < 0 || beta < 0 || phi < 0 || beta + phi + alpha + 2*phi*alpha >= 1) {
     return(1e10)
   }
@@ -805,6 +755,7 @@ EXPANDEDRTgarch11 <- function(par, rt, mu) {
 
 
 
+
 start_par_RT <- c(
   omega = 0.04590705,
   alpha = 0.19226977 ,
@@ -823,24 +774,9 @@ RTgarch_fit <- optim(
   upper = c(Inf, 1, 1, 1)
 )
 
-EXPANDEDRTgarch_fit <- optim(
-  par = start_par_RT,
-  fn = EXPANDEDRTgarch11,
-  rt = rt,
-  mu = mu,
-  method = "L-BFGS-B",
-  #Omega > 0 to inf, remaining are bounded by 0 and 1 
-  lower = c(1e-8, 0, 0, 0),
-  upper = c(Inf, 1, 1, 1)
-)
-
 RTgarch_fit$par
 RTgarch_fit$value
 RTgarch_fit$convergence
-
-EXPANDEDRTgarch_fit$par
-EXPANDEDRTgarch_fit$value
-EXPANDEDRTgarch_fit$convergence
 
 
 h_long = (as.numeric(RTgarch_fit$par[1]))/(as.numeric(1 - RTgarch_fit$par[3] - RTgarch_fit$par[4]))
@@ -849,52 +785,6 @@ h_long = (as.numeric(RTgarch_fit$par[1]))/(as.numeric(1 - RTgarch_fit$par[3] - R
 print(h_long)
 
 RTgjr_garch <- function(par, rt, mu) {
-  
-  omega  <- par[1]
-  alpha1 <- par[2]
-  alpha2 <- par[3]
-  beta   <- par[4]
-  phi1   <- par[5]
-  phi2   <- par[6]
-  
-  phi_bar   <- (phi1 + phi2) / 2
-  alpha_bar <- (alpha1 + alpha2) / 2
-  
-  if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
-      phi1 < 0 || phi2 < 0 ||
-      beta + phi_bar >= 1) return(1e10)
-  
-  T <- length(rt)
-  h <- numeric(T)
-  h[1] <- omega / (1 - beta - phi_bar)
-  
-  if (!is.finite(h[1]) || h[1] <= 0) return(1e10)
-  
-  for (t in 1:(T-1)) {
-    alpha_t <- ifelse(rt[t]   <= mu, alpha1, alpha2)
-    phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
-    g_t     <- omega + beta*h[t] + alpha_t*(rt[t]-mu)^2
-    h[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h[t]*(rt[t+1]-mu)^2)
-  }
-  
-  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) return(1e10)
-  
-  h_tm1   <- h[-T]
-  h_cur   <- h[-1]
-  rt_cur  <- rt[-1]
-  phi_vec <- ifelse(rt_cur <= mu, phi1, phi2)
-  
-  ll <- sum(
-    0.5*log(2*pi) +
-      0.5*(rt_cur-mu)^2/h_cur -
-      log(sqrt(h_cur)/(h_cur + phi_vec*h_tm1*(rt_cur-mu)^2/h_cur))
-  )
-  
-  if (!is.finite(ll)) return(1e10)
-  return(ll)
-}
-
-EXPANDEDRTgjr_garch <- function(par, rt, mu) {
   
   omega  <- par[1]
   alpha1 <- par[2]
@@ -939,6 +829,7 @@ EXPANDEDRTgjr_garch <- function(par, rt, mu) {
   if (!is.finite(ll)) return(1e10)
   return(ll)
 }
+
 
 start_par_RTgjr <- c(
   omega  = 0.04149673,
@@ -1819,12 +1710,14 @@ print(tStats_RTGJRGARCH)
 
 #GARCH recursion
 
-h_1 <- numeric(T)
-h_1[1] <- var(rt)
+
 
 omega <- garch_fit$par[1]
 alpha <- garch_fit$par[2]
 beta <- garch_fit$par[3]
+
+h_1 <- numeric(T)
+h_1[1] <- omega / (1-alpha-beta)
 
 for (t in 1:(T - 1)) {
   h_1[t + 1] <- omega + alpha*(rt[t] - mu)^2 + beta*h_1[t]
@@ -1833,13 +1726,14 @@ for (t in 1:(T - 1)) {
 
 #GARCH-GJR recursion
 
-h_garch <- numeric(T)
-h_garch[1] <- var(rt)
 
 omega <- gjr_fit$par[1]
 alpha1 <- gjr_fit$par[2]
 alpha2 <- gjr_fit$par[3]
 beta <- gjr_fit$par[4]
+
+h_garch <- numeric(T)
+h_garch[1] <- omega / (1 - (alpha1+alpha2)/2 - beta) 
 
 shock <- rt - mu
 
@@ -2013,12 +1907,14 @@ RTgjr_est_fit <- optim(
 
 #GARCH recursion
 
-h_1 <- numeric(T)
-h_1[1] <- var(rt_est)
 
 omega <- garch_est_fit$par[1]
 alpha <- garch_est_fit$par[2]
 beta <- garch_est_fit$par[3]
+
+h_1 <- numeric(T)
+h_1[1] <- omega / (1 - alpha - beta)
+
 
 for (t in 1:(T - 1)) {
   h_1[t + 1] <- omega + alpha*(rt[t] - mu_est)^2 + beta*h_1[t]
@@ -2027,13 +1923,13 @@ for (t in 1:(T - 1)) {
 
 #GARCH-GJR recursion
 
-h_garch <- numeric(T)
-h_garch[1] <- var(rt_est)
-
 omega <- gjr_est_fit$par[1]
 alpha1 <- gjr_est_fit$par[2]
 alpha2 <- gjr_est_fit$par[3]
 beta <- gjr_est_fit$par[4]
+
+h_garch <- numeric(T)
+h_garch[1] <- omega / (1 - (alpha1+alpha2)/2 - beta)
 
 shock <- rt - mu_est
 
