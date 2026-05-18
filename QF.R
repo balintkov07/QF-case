@@ -158,7 +158,7 @@ garch_gjr <- function(par, rt, mu) {
   h <- numeric(T)
   
   # Initial conditional variance
-  h[1] <- var(rt)
+  h[1] <- omega / (1 - (alpha1 + alpha2)/2 - beta)
   
   if (!is.finite(h[1]) || h[1] <= 0) {
     return(1e10)
@@ -467,16 +467,6 @@ start_par_RTgjr <- c(
   phi2   = 0.005
 )
 
-# RTgjr_fit <- optim(
-#   par     = start_par_RTgjr,
-#   fn      = RTgjr_garch,
-#   rt      = rt,
-#   mu      = mu,
-#   method  = "L-BFGS-B",
-#   lower   = c(1e-8, 0, 0, 0, 0, 0),
-#   upper   = c(Inf,  1, 1, 1, 1, 1),
-#   control = list(maxit = 1000, factr = 1e7)
-# )
 
 RTgjr_fit <- optim(
   par     = start_par_RTgjr,
@@ -634,26 +624,154 @@ for(i in 3:nrow(CompleteCalender)){
   }
 }
 
-AllPrices <- c()
-
-for(i in 1:4178){
-  AllPrices <- c(AllPrices, df_init$Open[i])
-  AllPrices <- c(AllPrices, df_init$Close[i])
-}
-
-OpenMarketReturns <- 0
-CloseMarketReturns <- 0
-
-for(i in 2:length(AllPrices)){
-  k <- AllPrices[i] - AllPrices[i-1]
-  if((i %% 2) == 0){
-    OpenMarketReturns <- OpenMarketReturns + k
-  } else {
-    CloseMarketReturns <- CloseMarketReturns + k
+## Dummy Garch
+Dummygarch11 <- function(par, rt, mu, DUM) {
+  
+  omega <- par[1]
+  alpha <- par[2]
+  beta  <- par[3]
+  delta <- par[4]
+  
+  # Penalize invalid parameter values
+  if (omega <= 0 || alpha < 0 || beta < 0 || alpha + delta*mean(DUM) + beta >= 1) {
+    return(1e10)
   }
+  
+  T <- length(rt)
+  h <- numeric(T)
+  
+  # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
+  h[1] <- omega / (1 - alpha - delta*mean(DUM) - beta)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) {
+    return(1e10)
+  }
+  
+  # Generate conditional variances recursively
+  for (t in 1:(T - 1)) {
+    h[t + 1] <- omega + (alpha+delta*mean(DUM)) * (rt[t] - mu)^2 + beta * h[t]
+  }
+  
+  # Now check h after it has been generated
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
+    return(1e10)
+  }
+  
+  # Negative log-likelihood
+  garch11ll <- 0.5 * sum(log(2 * pi) + log(h) + ((rt - mu)^2 / h))
+  
+  if (!is.finite(garch11ll)) {
+    return(1e10)
+  }
+  
+  return(garch11ll)
 }
 
-OO_rt <- as.numeric(100*log(df_init$Open[-1]/df_init$Open[-T]))
+start_par <- c(
+  omega = 0.05,
+  alpha = 0.10,
+  beta  = 0.85,
+  delta = 0.01
+)
+
+# Estimate model
+Dummygarch_fit <- optim(
+  par = start_par,
+  fn = Dummygarch11,
+  rt = rt,
+  mu = mu,
+  DUM = DummyAfterHoliday, 
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0),
+  upper = c(Inf, 1, 1)
+)
+
+#post - optimisation parameter estimates 
+Dummygarch_fit$par
+Dummygarch_fit$value
+Dummygarch_fit$convergence
+
+
+## Dummy GJR Garch
+
+DummyGARCH_gjr <- function(par, rt, mu, DUM) {
+  
+  omega  <- par[1]
+  alpha1 <- par[2]
+  alpha2 <- par[3]
+  beta   <- par[4]
+  delta <- par[5]
+  
+  # Parameter restrictions
+  # omega > 0, alpha1 >= 0, alpha2 >= 0, beta >= 0
+  # Stationarity: alpha1 + 0.5 * alpha2 + beta < 1
+  if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
+      (alpha1 + alpha2) / 2 + delta*mean(DUM) + beta >= 1) {
+    return(1e10)
+  }
+  
+  T <- length(rt)
+  h <- numeric(T)
+  
+  # Initial conditional variance
+  h[1] <- omega / (1 - (alpha1 + alpha2)/2 - delta * mean(DUM) - beta)
+  
+  if (!is.finite(h[1]) || h[1] <= 0) {
+    return(1e10)
+  }
+  
+  shock <- rt - mu
+  
+  for (t in 1:(T - 1)) {
+    
+    indicator <- ifelse(shock[t] < 0, 1, 0)
+    
+    h[t+1] <- omega +
+      (alpha1 * indicator * delta*DUM[t]) * shock[t]^2 +        # alpha1 when negative
+      (alpha2 * (1 - indicator) * delta*DUM[t]) * shock[t]^2 +  # alpha2 when positive
+      beta * h[t]
+  }
+  
+  if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) {
+    return(1e10)
+  }
+  
+  ll <- 0.5 * sum(log(2 * pi) + log(h) + shock^2 / h)
+  
+  if (!is.finite(ll)) {
+    return(1e10)
+  }
+  
+  return(ll)
+}
+
+
+start_par_gjr <- c(
+  omega  = 0.05,
+  alpha1 = 0.15,  # negative shock reaction — larger
+  alpha2 = 0.05,  # positive shock reaction — smaller
+  beta   = 0.85,
+  delta = 0.01
+)
+
+Dummygjr_fit <- optim(
+  par = start_par_gjr,
+  fn = DummyGARCH_gjr,
+  rt = rt,
+  mu = mu,
+  DUM = DummyAfterHoliday,
+  method = "L-BFGS-B",
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(10, 1, 1, 1)
+)
+
+Dummygjr_fit$par
+Dummygjr_fit$value
+Dummygjr_fit$convergence
+
+
+## Dummy RT GARCH
 
 DummyRTgarch11 <- function(par, rt, mu, DUM) {
   omega <- par[1]
@@ -705,6 +823,33 @@ DummyRTgarch11 <- function(par, rt, mu, DUM) {
 }
 
 
+start_par_RT <- c(
+  omega = 0.04590705,
+  alpha = 0.19226977 ,
+  beta  = 0.77380626 ,
+  phi = 0.01,
+  delta = 0.01
+)
+
+DummyRTgarch_fit <- optim(
+  par = start_par_RT,
+  fn = DummyRTgarch11,
+  rt = rt,
+  mu = mu,
+  DUM = DummyAfterHoliday,
+  method = "L-BFGS-B",
+  #Omega > 0 to inf, remaining are bounded by 0 and 1 
+  lower = c(1e-8, 0, 0, 0),
+  upper = c(Inf, 1, 1, 1)
+)
+
+DummyRTgarch_fit$par
+DummyRTgarch_fit$value
+DummyRTgarch_fit$convergence
+
+
+## Dummy RT GJR garch
+
 DUMMYRTgjr_garch <- function(par, rt, mu, DUM) {
   
   omega  <- par[1]
@@ -753,25 +898,6 @@ DUMMYRTgjr_garch <- function(par, rt, mu, DUM) {
 }
 
 
-start_par_RT <- c(
-  omega = 0.04590705,
-  alpha = 0.19226977 ,
-  beta  = 0.77380626 ,
-  phi = 0.01,
-  delta = 0.01
-)
-
-DummyRTgarch_fit <- optim(
-  par = start_par_RT,
-  fn = DummyRTgarch11,
-  rt = rt,
-  mu = mu,
-  DUM = DummyAfterHoliday,
-  method = "L-BFGS-B",
-  #Omega > 0 to inf, remaining are bounded by 0 and 1 
-  lower = c(1e-8, 0, 0, 0),
-  upper = c(Inf, 1, 1, 1)
-)
 
 start_par_RTgjr <- c(
   omega  = 0.04149673,
@@ -797,13 +923,6 @@ DummyRTgarchGJR_fit <- optim(
   control = list(maxit = 1000)
 )
 
-
-
-
-
-DummyRTgarch_fit$par
-DummyRTgarch_fit$value
-DummyRTgarch_fit$convergence
 
 DummyRTgarchGJR_fit$par
 DummyRTgarchGJR_fit$value
@@ -949,23 +1068,23 @@ for (i in 2:T){
 }
 
 CovRTGARCH <- solve(FischerGARCH)
-tStats_RTGARCH <- c(omega = RTgarch_fit$par[1]/sqrt(CovGJRGARCH[1,1]),
-                     alpha = RTgarch_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
-                     beta = RTgarch_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
-                     phi = RTgarch_fit$par[4]/sqrt(CovGJRGARCH[4,4])
+tStats_RTGARCH <- c(omega = RTgarch_fit$par[1]/sqrt(CovRTGARCH[1,1]),
+                     alpha = RTgarch_fit$par[2]/sqrt(CovRTGARCH[2,2]),
+                     beta = RTgarch_fit$par[3]/sqrt(CovRTGARCH[3,3]),
+                     phi = RTgarch_fit$par[4]/sqrt(CovRTGARCH[4,4])
 )
 print(tStats_RTGARCH)
 
 ## RTGJRGarch model
 
-FischerGARCH <- matrix(0,4,4)
+FischerGARCH <- matrix(0,6,6)
 for (i in 2:T){
   
   ObsLL <- function(par) {
     
     omega <- par[1]
     alpha1 <- par[2]
-    alpha1  <- par[3]
+    alpha2 <- par[3]
     beta <- par[4]
     phi1 <- par[5]
     phi2 <- par[6]
@@ -976,61 +1095,37 @@ for (i in 2:T){
     h <- numeric(i)
     h[1] <- omega / (1 - beta - phi_bar)
     
-    if (!is.finite(h[1]) || h[1] <= 0) return(1e10)
     
-    for (t in 1:(T-1)) {
-      alpha_t <- ifelse(rt[t]   <= mu, alpha1, alpha2)
-      phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
-      g_t     <- omega + beta*h[t] + alpha_t*(rt[t]-mu)^2
-      h[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h[t]*(rt[t+1]-mu)^2)
+    for (t in 2:i) {
+      alpha_t_1 <- ifelse(rt[t-1]   <= mu, alpha1, alpha2)
+      phi_t   <- ifelse(rt[t] <= mu, phi1,   phi2)
+      g_t_1     <- omega + beta*h[t-1] + alpha_t_1*(rt[t-1]-mu)^2
+      h[t]  <- 0.5*g_t_1 + 0.5*sqrt(g_t_1^2 + 4*phi_t*h[t-1]*(rt[t]-mu)^2)
     }
     
-    if (any(h <= 0) || any(is.na(h)) || any(is.infinite(h))) return(1e10)
+    phi_i   <- ifelse(rt[i] <= mu, phi1,   phi2)
     
-    h_tm1   <- h[-T]
-    h_cur   <- h[-1]
-    rt_cur  <- rt[-1]
-    phi_vec <- ifelse(rt_cur <= mu, phi1, phi2)
+    ll <- -0.5*log(2*pi) - 0.5*(rt[i]-mu)^2/h[i] + log(sqrt(h[i])/(h[i] + phi_i*h[i-1]*(rt[i]-mu)^2/h[i]))
     
-    ll <- sum(
-      0.5*log(2*pi) +
-        0.5*(rt_cur-mu)^2/h_cur -
-        log(sqrt(h_cur)/(h_cur + phi_vec*h_tm1*(rt_cur-mu)^2/h_cur))
-    )
     
-    if (!is.finite(ll)) return(1e10)
     return(ll)
-    
-    h <- numeric(i)
-    
-    # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
-    h[1] <- omega / (1 - beta - phi)
-    
-    shock <- rt - mu
-    
-    for (t in 2:i){
-      h[t] <- 0.5*(omega + beta*h[t-1] + alpha*(shock[t-1])^2) + 0.5*sqrt((omega + beta*h[t-1] + alpha*(shock[t-1])^2)^2 + 4*phi*h[t-1]*(shock[t])^2)
-    }
-    
-    # log-likelihood
-    garch11ll <- -0.5*log(2*pi)-0.5*(shock[i])^2/h[i]+log(sqrt(h[i])/(h[i]+phi*h[i-1]*(shock[i])^2/h[i]))
-    
-    return(garch11ll)
   }
   if (i %% 500 == 0) {
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, RTgarch_fit$par, method = "complex"), grad(ObsLL, RTgarch_fit$par, method = "complex"))
+  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, RTgjr_fit$par, method = "complex"), grad(ObsLL, RTgjr_fit$par, method = "complex"))
 }
 
-CovRTGARCH <- solve(FischerGARCH)
-tStats_RTGARCH <- c(omega = RTgarch_fit$par[1]/sqrt(CovGJRGARCH[1,1]),
-                    alpha = RTgarch_fit$par[2]/sqrt(CovGJRGARCH[2,2]),
-                    beta = RTgarch_fit$par[3]/sqrt(CovGJRGARCH[3,3]),
-                    phi = RTgarch_fit$par[4]/sqrt(CovGJRGARCH[4,4])
+CovRTGJRGARCH <- solve(FischerGARCH)
+tStats_RTGJRGARCH <- c(omega = RTgjr_fit$par[1]/sqrt(CovRTGJRGARCH[1,1]),
+                    alpha1 = RTgjr_fit$par[2]/sqrt(CovRTGJRGARCH[2,2]),
+                    alpha2 = RTgjr_fit$par[3]/sqrt(CovRTGJRGARCH[3,3]),
+                    beta = RTgjr_fit$par[4]/sqrt(CovRTGJRGARCH[4,4]),
+                    phi1 = RTgjr_fit$par[5]/sqrt(CovRTGJRGARCH[5,5]),
+                    phi2 = RTgjr_fit$par[6]/sqrt(CovRTGJRGARCH[6,6])
 )
-print(tStats_RTGARCH)
+print(tStats_RTGJRGARCH)
 
 
 
