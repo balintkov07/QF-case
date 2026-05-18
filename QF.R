@@ -14,6 +14,32 @@ library(tidyr)
 install.packages("numDeriv")
 library(numDeriv)
 
+library(knitr)
+
+install.packages("nnet")
+library(nnet)
+
+
+#The coolest graphs ever! 
+
+library(ggplot2)
+install.packages("ggplot2")
+install.packages("ggplot")
+
+install.packages("reshape2")
+library(reshape2)
+install.packages("ggthemes")
+library(ggthemes)
+
+
+install.packages("nnet")
+library(nnet)
+
+install.packages("forecast")
+library(forecast)
+
+
+
 #--------------------------DATA PROCESSING --------------------------
 
 # Janek:
@@ -153,8 +179,6 @@ rownames(high_tbl) <- c("Current State: High", "Current State: Low")
 colnames(low_tbl) <- c("Negative Return", "Positive / Zero Return")
 rownames(low_tbl) <- c("Current State: High", "Current State: Low")
 
-library(knitr)
-
 kable(high_tbl,
       caption = "Probability of Transitioning to High-Volatility State")
 
@@ -168,8 +192,6 @@ kable(low_tbl,
 # 5-STATE VOLATILITY REGIME EXTENSION
 # ============================================================
 
-#install.packages("nnet")
-library(nnet)
 
 # ----------------------------
 # 1. Define variables
@@ -248,7 +270,7 @@ print(tab5[, "Positive_or_Zero", ])
 
 neg_matrix <- round(prob5[, "Negative", ], 3)
 pos_matrix <- round(prob5[, "Positive_or_Zero", ], 3)
-library(knitr)
+
 kable(
   neg_matrix,
   caption = "Transition probabilities conditional on negative returns"
@@ -337,17 +359,6 @@ print(round(pred_probs, 3))
 
 
 
-
-#The coolest graphs ever! 
-
-library(ggplot2)
-install.packages("ggplot2")
-install.packages("ggplot")
-
-#install.packages("reshape2")
-library(reshape2)
-install.packages("ggthemes")
-library(ggthemes)
 
 diff_matrix <- prob5[, "Negative", ] - prob5[, "Positive_or_Zero", ]
 
@@ -2258,8 +2269,6 @@ print(round(final_results, 6))
 
 #---------------DIEBOLD-MARIANO & MINCER-ZARNOWITZ TESTS-----------------------------------
 
-install.packages("forecast")
-library(forecast)
 
 crisis_1 <- 1:760
 calm <- 761:1211
