@@ -1180,10 +1180,19 @@ final_results <- rbind(
 print(round(final_results, 6))
 
 #==========================EXTENSIONS=============================================
+# Bálint's contributions:
+#   1. Student-t errors — replaces Gaussian with t_nu to capture fat tails
+#   2. Feedback effect (GARCH-in-Mean) — direct test of feedback via the
+#      return equation, complementing the phi channel in the variance eq.
+#=================================================================================
 
 
 #--------------------------STUDENT-T ERRORS---------------------------------------
+# Replaces eps_t ~ N(0,1) with eps_t ~ t_nu(0,1). Adds one parameter (nu).
+# If GARCH filtering leaves residual fat tails, Student-t errors will improve
+# AIC substantially. Nested in Gaussian as nu -> infinity.
 
+# Standardized Student-t log-density (variance normalised to 1 via (nu-2))
 student_t_nll <- function(e_sq, h, nu) {
   lgamma((nu + 1) / 2) - lgamma(nu / 2) -
     0.5 * log(pi * (nu - 2)) -
@@ -1191,13 +1200,11 @@ student_t_nll <- function(e_sq, h, nu) {
     ((nu + 1) / 2) * log(1 + e_sq / ((nu - 2) * h))
 }
 
-# --- GARCH(1,1) with Student-t errors ---
+# Four model variants — same structure as Gaussian siblings, but with nu
 garch11_t <- function(par, rt, mu) {
   omega <- par[1]; alpha <- par[2]; beta <- par[3]; nu <- par[4]
   if (omega <= 0 || alpha < 0 || beta < 0 || alpha + beta >= 1 || nu <= 2) return(1e10)
-  T <- length(rt)
-  h <- numeric(T)
-  h[1] <- var(rt)
+  T <- length(rt); h <- numeric(T); h[1] <- var(rt)
   if (!is.finite(h[1]) || h[1] <= 0) return(1e10)
   for (t in 1:(T - 1)) h[t + 1] <- omega + alpha * (rt[t] - mu)^2 + beta * h[t]
   if (any(h <= 0) || any(!is.finite(h))) return(1e10)
@@ -1206,7 +1213,6 @@ garch11_t <- function(par, rt, mu) {
   return(ll)
 }
 
-# --- GJR-GARCH with Student-t errors ---
 garch_gjr_t <- function(par, rt, mu) {
   omega <- par[1]; alpha1 <- par[2]; alpha2 <- par[3]; beta <- par[4]; nu <- par[5]
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
@@ -1224,7 +1230,6 @@ garch_gjr_t <- function(par, rt, mu) {
   return(ll)
 }
 
-# --- RT-GARCH with Student-t errors ---
 RTgarch11_t <- function(par, rt, mu) {
   omega <- par[1]; alpha <- par[2]; beta <- par[3]; psi <- par[4]; nu <- par[5]
   if (omega <= 0 || alpha < 0 || beta < 0 || psi < 0 || beta + psi >= 1 || nu <= 2) return(1e10)
@@ -1244,7 +1249,6 @@ RTgarch11_t <- function(par, rt, mu) {
   return(ll)
 }
 
-# --- RT-GJR-GARCH with Student-t errors ---
 RTgjr_garch_t <- function(par, rt, mu) {
   omega <- par[1]; alpha1 <- par[2]; alpha2 <- par[3]
   beta  <- par[4]; phi1  <- par[5]; phi2  <- par[6]; nu <- par[7]
@@ -1270,12 +1274,14 @@ RTgjr_garch_t <- function(par, rt, mu) {
   return(ll)
 }
 
-#--- Step 1: Method-of-Moments diagnostic ---
+# --- Step 1: Method-of-Moments diagnostic ---
+# Filter with Gaussian estimates, compute kurtosis of standardized residuals.
+# nu_MOM = 4 + 6/excess_kurt inverts the Student-t kurtosis formula.
 
-h_mom_garch <- numeric(T)
-h_mom_garch[1] <- var(rt)
+h_mom_garch <- numeric(T); h_mom_garch[1] <- var(rt)
 for (t in 1:(T - 1)) {
-  h_mom_garch[t + 1] <- garch_fit$par[1] + garch_fit$par[2] * (rt[t] - mu)^2 + garch_fit$par[3] * h_mom_garch[t]
+  h_mom_garch[t + 1] <- garch_fit$par[1] + garch_fit$par[2] * (rt[t] - mu)^2 +
+    garch_fit$par[3] * h_mom_garch[t]
 }
 z_garch <- (rt - mu) / sqrt(h_mom_garch)
 
@@ -1298,8 +1304,8 @@ nu_mom_rtgjr <- if (excess_kurt_rtgjr > 0) 4 + 6 / excess_kurt_rtgjr else 8
 cat("\n================================================================\n")
 cat("  STUDENT-T EXTENSION: STEP 1 — Method-of-Moments nu diagnostic\n")
 cat("================================================================\n")
-cat("  Empirical kurtosis of raw returns:          ~14.5\n")
-cat("  Gaussian kurtosis benchmark:                 3.0\n")
+cat(sprintf("  Empirical kurtosis of raw returns:          %.2f\n", kurtosis(rt)))
+cat("  Gaussian kurtosis benchmark:                 3.00\n")
 cat(sprintf("  GARCH    std. residuals — excess kurtosis: %6.3f  =>  nu_MOM = %.2f\n",
             excess_kurt_garch, nu_mom_garch))
 cat(sprintf("  RT-GJR   std. residuals — excess kurtosis: %6.3f  =>  nu_MOM = %.2f\n",
@@ -1310,53 +1316,44 @@ cat("  after GARCH filtering -> Student-t errors warranted.\n")
 nu_start <- max(3, min(15, mean(c(nu_mom_garch, nu_mom_rtgjr))))
 cat(sprintf("  Starting nu for MLE: %.2f\n", nu_start))
 
-#--- Step 2: Fit Student-t models ---
-
+# --- Step 2: Fit Student-t models ---
 garch_t_fit <- optim(
-  par = c(garch_fit$par, nu = nu_start),
-  fn = garch11_t, rt = rt, mu = mu,
+  par = c(garch_fit$par, nu = nu_start), fn = garch11_t, rt = rt, mu = mu,
   method = "L-BFGS-B",
   lower = c(1e-8, 0, 0, 2.01), upper = c(Inf, 1, 1, 50)
 )
-
 gjr_t_fit <- optim(
-  par = c(gjr_fit$par, nu = nu_start),
-  fn = garch_gjr_t, rt = rt, mu = mu,
+  par = c(gjr_fit$par, nu = nu_start), fn = garch_gjr_t, rt = rt, mu = mu,
   method = "L-BFGS-B",
   lower = c(1e-8, 0, 0, 0, 2.01), upper = c(10, 1, 1, 1, 50)
 )
-
 RTgarch_t_fit <- optim(
-  par = c(RTgarch_fit$par, nu = nu_start),
-  fn = RTgarch11_t, rt = rt, mu = mu,
+  par = c(RTgarch_fit$par, nu = nu_start), fn = RTgarch11_t, rt = rt, mu = mu,
   method = "L-BFGS-B",
   lower = c(1e-8, 0, 0, 0, 2.01), upper = c(Inf, 1, 1, 1, 50)
 )
-
 RTgjr_t_fit <- optim(
-  par = c(RTgjr_fit$par, nu = nu_start),
-  fn = RTgjr_garch_t, rt = rt, mu = mu,
+  par = c(RTgjr_fit$par, nu = nu_start), fn = RTgjr_garch_t, rt = rt, mu = mu,
   method = "L-BFGS-B",
   lower = c(1e-8, 0, 1e-8, 0, 0, 1e-8, 2.01), upper = c(Inf, 1, 1, 1, 1, 1, 50),
   control = list(maxit = 1000)
 )
 
-#--- Step 3: Results ---
-
+# --- Step 3: Results table ---
 AIC_GARCH_t   <- 2 * 4 + 2 * garch_t_fit$value
 AIC_GJR_t     <- 2 * 5 + 2 * gjr_t_fit$value
 AIC_RTGARCH_t <- 2 * 5 + 2 * RTgarch_t_fit$value
 AIC_RTgjr_t   <- 2 * 7 + 2 * RTgjr_t_fit$value
 
-nu_estimates  <- c(garch_t_fit$par["nu"], gjr_t_fit$par["nu"],
-                   RTgarch_t_fit$par["nu"], RTgjr_t_fit$par["nu"])
+nu_estimates <- c(garch_t_fit$par["nu"], gjr_t_fit$par["nu"],
+                  RTgarch_t_fit$par["nu"], RTgjr_t_fit$par["nu"])
 names(nu_estimates) <- c("GARCH", "GJR", "RT-GARCH", "RT-GJR")
-implied_kurt  <- ifelse(nu_estimates > 4, 3 + 6 / (nu_estimates - 4), Inf)
-aic_improve   <- c(AIC_GARCH - AIC_GARCH_t, AIC_GJR - AIC_GJR_t,
-                   AIC_RTGARCH - AIC_RTGARCH_t, AIC_RTgjr - AIC_RTgjr_t)
+implied_kurt <- ifelse(nu_estimates > 4, 3 + 6 / (nu_estimates - 4), Inf)
+aic_improve  <- c(AIC_GARCH - AIC_GARCH_t, AIC_GJR - AIC_GJR_t,
+                  AIC_RTGARCH - AIC_RTGARCH_t, AIC_RTgjr - AIC_RTgjr_t)
 
 cat("\n================================================================\n")
-cat("  STUDENT-T EXTENSION: STEP 2 — MLE estimates of nu\n")
+cat("  STUDENT-T EXTENSION: STEP 2 — MLE results\n")
 cat("================================================================\n")
 results_t <- data.frame(
   Model            = c("GARCH", "GJR", "RT-GARCH", "RT-GJR"),
@@ -1368,30 +1365,35 @@ results_t <- data.frame(
 )
 print(results_t, row.names = FALSE)
 
-cat("\nInterpretation:\n")
-cat(sprintf("  Best Student-t model: %s (AIC = %.1f)\n",
+cat(sprintf("\n  Best Student-t model: %s (AIC = %.1f)\n",
             results_t$Model[which.min(results_t$AIC_Student_t)],
             min(results_t$AIC_Student_t)))
 cat(sprintf("  Largest AIC gain from t-errors: %s (+%.1f)\n",
-            results_t$Model[which.max(aic_improve)],
-            max(aic_improve)))
-if (all(nu_estimates < 10)) {
+            results_t$Model[which.max(aic_improve)], max(aic_improve)))
+if (all(nu_estimates < 10))
   cat("  All nu < 10: strong evidence for fat-tailed shocks across all models.\n")
-}
-if (all(aic_improve > 0)) {
+if (all(aic_improve > 0))
   cat("  All Student-t AICs lower than Gaussian: distributional assumption matters.\n")
-}
 
 
 #--------------------------FEEDBACK EFFECT EXTENSION------------------------------
-
-# Model: r_t = mu - beta1*(h_t - h_bar) + sqrt(h_t)*eps_t
-# If beta1 > 0 and significant: high volatility depresses returns contemporaneously
-# => feedback effect (h_t -> r_t) confirmed in the return equation
+# GARCH-in-Mean extension of RT-GJR-GARCH (Engle, Lilien & Robins 1987).
+#
+# Return equation:  r_t = mu - beta1*(h_{t-1} - h_bar) + sqrt(h_t)*eps_t
+# Reported gamma:   gamma = -beta1  (direct coefficient on excess variance)
+#
+# Interpretation:
+#   gamma < 0, significant : feedback effect — high vol depresses returns
+#   gamma > 0, significant : risk premium — high vol raises returns
+#   gamma ~= 0             : phi channel in RT-GJR already absorbs feedback
+#
+# Tractability: uses h_{t-1} (lagged variance) instead of h_t in the return
+# equation to avoid a higher-order fixed-point problem. When beta1 = 0,
+# reduces to RT-GJR-GARCH exactly (verified via sanity check below).
 
 FeedbackRTgjr_garch <- function(par, rt, mu) {
   omega  <- par[1]; alpha1 <- par[2]; alpha2 <- par[3]
-  beta   <- par[4]; phi1   <- par[5]; phi2   <- par[6]; beta1  <- par[7]
+  beta   <- par[4]; phi1   <- par[5]; phi2   <- par[6]; beta1 <- par[7]
   
   phi_bar <- (phi1 + phi2) / 2
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
@@ -1429,9 +1431,15 @@ FeedbackRTgjr_garch <- function(par, rt, mu) {
   return(ll)
 }
 
+# --- Sanity check: at beta1 = 0, must recover RT-GJR exactly ---
+ll_at_zero <- FeedbackRTgjr_garch(c(RTgjr_fit$par, beta1 = 0), rt, mu)
+cat(sprintf("\n  Nesting check: NLL at beta1=0 = %.4f (RT-GJR baseline = %.4f)\n",
+            ll_at_zero, RTgjr_fit$value))
+stopifnot(abs(ll_at_zero - RTgjr_fit$value) < 1e-6)
+
+# --- Two-step optimisation: fast fit, then Hessian at the optimum ---
 feedback_fit <- optim(
-  par = c(RTgjr_fit$par, beta1 = 0),
-  fn = FeedbackRTgjr_garch, rt = rt, mu = mu,
+  par = c(RTgjr_fit$par, beta1 = 0), fn = FeedbackRTgjr_garch, rt = rt, mu = mu,
   method = "L-BFGS-B",
   lower = c(1e-8, 0, 1e-8, 0, 0, 1e-8, -Inf),
   upper = c(Inf,  1, 1,    1, 1, 1,    Inf),
@@ -1439,15 +1447,14 @@ feedback_fit <- optim(
 )
 
 feedback_fit_h <- optim(
-  par = feedback_fit$par,
-  fn = FeedbackRTgjr_garch, rt = rt, mu = mu,
+  par = feedback_fit$par, fn = FeedbackRTgjr_garch, rt = rt, mu = mu,
   method = "L-BFGS-B",
   lower = c(1e-8, 0, 1e-8, 0, 0, 1e-8, -Inf),
   upper = c(Inf,  1, 1,    1, 1, 1,    Inf),
-  control = list(maxit = 500),
-  hessian = TRUE
+  control = list(maxit = 500), hessian = TRUE
 )
 
+# --- Inference ---
 AIC_Feedback <- 2 * 7 + 2 * feedback_fit$value
 
 beta1_hat <- feedback_fit$par["beta1"]
@@ -1455,48 +1462,16 @@ se_beta1  <- tryCatch({
   H <- feedback_fit_h$hessian
   if (all(is.finite(H)) && det(H) != 0) sqrt(diag(solve(H))["beta1"]) else NA
 }, error = function(e) NA)
-t_stat    <- beta1_hat / se_beta1
-p_val     <- if (!is.na(t_stat)) 2 * pt(-abs(t_stat), df = T - 7) else NA
 
-cat("\n================================================================\n")
-cat("  FEEDBACK EFFECT EXTENSION\n")
-cat("  Model: r_t = mu - beta1*(h_t - h_bar) + sqrt(h_t)*eps_t\n")
-cat("  Base:  RT-GJR-GARCH\n")
-cat("================================================================\n")
-cat(sprintf("  beta1 estimate : %9.6f\n", beta1_hat))
-cat(sprintf("  Std error      : %9.6f  (approx — generated regressor)\n", se_beta1))
-cat(sprintf("  t-statistic    : %9.3f\n", t_stat))
-cat(sprintf("  p-value        : %9.4f\n", p_val))
-cat(sprintf("  AIC baseline   : %9.2f  (RT-GJR-GARCH, Gaussian)\n", AIC_RTgjr))
-cat(sprintf("  AIC feedback   : %9.2f\n", AIC_Feedback))
-cat(sprintf("  AIC improvement: %9.2f  (positive = feedback model fits better)\n",
-            AIC_RTgjr - AIC_Feedback))
-cat("----------------------------------------------------------------\n")
-if (!is.na(t_stat) && abs(t_stat) > 1.96) {
-  cat(sprintf("  RESULT: beta1 SIGNIFICANT at 5%% (|t| = %.2f > 1.96)\n", abs(t_stat)))
-  if (beta1_hat > 0) {
-    cat("  INTERPRETATION: Above-average volatility depresses returns.\n")
-    cat("  => Feedback effect (h_t -> r_t) supported in the return equation.\n")
-  } else {
-    cat("  INTERPRETATION: beta1 < 0 — unexpected direction.\n")
-    cat("  => High volatility associated with higher-than-expected returns.\n")
-  }
-} else {
-  cat(sprintf("  RESULT: beta1 NOT significant at 5%% (|t| = %.2f <= 1.96)\n",
-              abs(t_stat)))
-  cat("  INTERPRETATION: No detectable feedback premium in the return equation.\n")
-  cat("  The phi channel in RT-GJR may already capture this effect.\n")
-}
-cat("================================================================\n")
-
-# Compute implied return-equation coefficient gamma = -beta1
-# r_t = mu + gamma*(h_t - h_bar) + sqrt(h_t)*eps_t
+# Report gamma = -beta1 (sign-flipped for direct economic reading)
 gamma_hat <- -beta1_hat
 se_gamma  <- se_beta1
 t_gamma   <- gamma_hat / se_gamma
 p_gamma   <- if (!is.na(t_gamma)) 2 * pt(-abs(t_gamma), df = T - 7) else NA
 
-# Parameter shift table: baseline RT-GJR vs feedback-augmented RT-GJR
+LR_stat <- 2 * (RTgjr_fit$value - feedback_fit$value)
+LR_pval <- pchisq(LR_stat, df = 1, lower.tail = FALSE)
+
 param_compare <- data.frame(
   Parameter = c("omega", "alpha1", "alpha2", "beta", "phi1", "phi2", "beta1"),
   Baseline  = round(c(RTgjr_fit$par, NA), 5),
@@ -1504,20 +1479,16 @@ param_compare <- data.frame(
   Change    = round(feedback_fit$par - c(RTgjr_fit$par, 0), 5)
 )
 
-# Likelihood ratio test (RT-GJR nested in Feedback model, k = 1 restriction)
-LR_stat <- 2 * (RTgjr_fit$value - feedback_fit$value)
-LR_pval <- pchisq(LR_stat, df = 1, lower.tail = FALSE)
-
+# --- Output block ---
 cat("\n================================================================\n")
-cat("  FEEDBACK EFFECT EXTENSION  —  RESULTS\n")
-cat("  Model:  r_t = mu + gamma*(h_t - h_bar) + sqrt(h_t)*eps_t\n")
-cat("  where   gamma = -beta1  (sign-flipped for direct economic reading)\n")
-cat("  Base:   RT-GJR-GARCH\n")
+cat("  FEEDBACK EFFECT EXTENSION — RESULTS\n")
+cat("  Model: r_t = mu + gamma*(h_{t-1} - h_bar) + sqrt(h_t)*eps_t\n")
+cat("  where  gamma = -beta1, base = RT-GJR-GARCH\n")
 cat("================================================================\n\n")
 
-cat("  --- Estimated coefficient on (h_t - h_bar) in return equation ---\n")
+cat("  --- Coefficient on (h_{t-1} - h_bar) in return equation ---\n")
 cat(sprintf("    gamma = -beta1   : %+9.6f\n", gamma_hat))
-cat(sprintf("    Std error        : %9.6f   (approx — generated regressor)\n", se_gamma))
+cat(sprintf("    Std error        : %9.6f   (Hessian-based, approximate)\n", se_gamma))
 cat(sprintf("    t-statistic      : %+9.3f\n", t_gamma))
 cat(sprintf("    p-value (2-sided): %9.4f\n\n", p_gamma))
 
@@ -1528,42 +1499,5 @@ cat(sprintf("    LR statistic (df=1)      : %9.3f\n", LR_stat))
 cat(sprintf("    LR p-value               : %9.4f\n", LR_pval))
 cat(sprintf("    AIC baseline             : %9.2f\n", AIC_RTgjr))
 cat(sprintf("    AIC feedback             : %9.2f\n", AIC_Feedback))
-cat(sprintf("    AIC improvement          : %+9.2f   (positive = feedback model better)\n\n",
+cat(sprintf("    AIC improvement          : %+9.2f   (positive = feedback better)\n\n",
             AIC_RTgjr - AIC_Feedback))
-
-cat("  --- Parameter shift (baseline RT-GJR -> feedback-augmented) ---\n")
-print(param_compare, row.names = FALSE)
-
-cat("\n  --- ECONOMIC INTERPRETATION ---\n")
-if (!is.na(t_gamma) && abs(t_gamma) > 1.96) {
-  if (gamma_hat > 0) {
-    cat("    gamma > 0 and significant.\n")
-    cat("    => Above-average volatility is associated with HIGHER returns.\n")
-    cat("       This is a classical RISK-PREMIUM effect (CAPM-style):\n")
-    cat("       investors demand higher expected return for higher risk.\n")
-    cat("       It is the OPPOSITE of the feedback effect (h_t -> r_t-).\n\n")
-    cat("    Reconciliation with the RT-GJR phi channel:\n")
-    cat("       The phi term already absorbs the contemporaneous shock-amplification\n")
-    cat("       part of the feedback story. What remains in the return equation is\n")
-    cat("       the standard risk-return tradeoff — a separate, slower-moving channel.\n")
-  } else {
-    cat("    gamma < 0 and significant.\n")
-    cat("    => Above-average volatility DEPRESSES returns contemporaneously.\n")
-    cat("       This IS the feedback effect (h_t -> r_t-, negatively) showing up\n")
-    cat("       directly in the return equation, ON TOP of the phi channel.\n")
-  }
-} else {
-  cat(sprintf("    gamma not significant (|t| = %.2f <= 1.96).\n", abs(t_gamma)))
-  cat("    => No detectable contemporaneous premium on excess variance in the\n")
-  cat("       return equation. The phi channel in RT-GJR already captures all\n")
-  cat("       same-day vol/return interaction.\n")
-}
-
-cat("\n  --- HEADLINE TAKEAWAY FOR THE REPORT ---\n")
-sig_label <- if (!is.na(p_gamma) && p_gamma < 0.05) "significant" else "not significant"
-direction <- if (gamma_hat > 0) "positive (risk-premium-like)" else "negative (feedback-like)"
-cat(sprintf("    gamma = %+0.4f, t = %+0.2f, p = %0.4f -> %s, %s\n",
-            gamma_hat, t_gamma, p_gamma, sig_label, direction))
-cat(sprintf("    Adding this single parameter improves AIC by %.1f points.\n",
-            AIC_RTgjr - AIC_Feedback))
-cat("================================================================\n")
