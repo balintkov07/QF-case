@@ -1377,19 +1377,7 @@ if (all(aic_improve > 0))
 
 
 #--------------------------FEEDBACK EFFECT EXTENSION------------------------------
-# GARCH-in-Mean extension of RT-GJR-GARCH (Engle, Lilien & Robins 1987).
-#
-# Return equation:  r_t = mu - beta1*(h_{t-1} - h_bar) + sqrt(h_t)*eps_t
-# Reported gamma:   gamma = -beta1  (direct coefficient on excess variance)
-#
-# Interpretation:
-#   gamma < 0, significant : feedback effect — high vol depresses returns
-#   gamma > 0, significant : risk premium — high vol raises returns
-#   gamma ~= 0             : phi channel in RT-GJR already absorbs feedback
-#
-# Tractability: uses h_{t-1} (lagged variance) instead of h_t in the return
-# equation to avoid a higher-order fixed-point problem. When beta1 = 0,
-# reduces to RT-GJR-GARCH exactly (verified via sanity check below).
+
 
 FeedbackRTgjr_garch <- function(par, rt, mu) {
   omega  <- par[1]; alpha1 <- par[2]; alpha2 <- par[3]
