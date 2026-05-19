@@ -1354,7 +1354,7 @@ for (i in 1:T){
     print(i)
   }
   
-  g <- grad(ObsLL, garch_fit$par, method = "Richardson")
+  g <- grad(ObsLL, garch_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g,g)
 }
@@ -1405,7 +1405,7 @@ for (i in 1:T){
     print(i)
   }
   
-  g <- grad(ObsLL, gjr_fit$par, method = "Richardson")
+  g <- grad(ObsLL, gjr_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g,g)
 }
@@ -1451,7 +1451,7 @@ for (i in 2:T){
     print(i)
   }
   
-  g <- grad(ObsLL, RTgarch_fit$par, method = "Richardson")
+  g <- grad(ObsLL, RTgarch_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g, g)
 }
@@ -1503,7 +1503,7 @@ for (i in 2:T){
     print(i)
   }
   
-  g <- grad(ObsLL, RTgjr_fit$par, method = "Richardson")
+  g <- grad(ObsLL, RTgjr_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g,g)
 }
@@ -1557,7 +1557,7 @@ for (i in 1:T){
     print(i)
   }
   
-  g <- grad(ObsLL, Dummygarch_fit$par, method = "Richardson")
+  g <- grad(ObsLL, Dummygarch_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g,g)
 }
@@ -1610,7 +1610,7 @@ for (i in 1:T){
     print(i)
   }
   
-  g <- grad(ObsLL, Dummygjr_fit$par, method = "Richardson")
+  g <- grad(ObsLL, Dummygjr_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g, g)
 }
@@ -1697,7 +1697,7 @@ for (i in 2:T){
     for (t in 2:i) {
       alpha_t_1 <- ifelse(rt[t-1]   <= mu, alpha1, alpha2)
       phi_t   <- ifelse(rt[t] <= mu, phi1,   phi2)
-      g_t_1     <- omega + beta*h[t-1] + (alpha_t_1 + delta*mean(DUM))*(rt[t-1]-mu)^2
+      g_t_1     <- omega + beta*h[t-1] + (alpha_t_1 + delta*DUM[t])*(rt[t-1]-mu)^2
       h[t]  <- 0.5*g_t_1 + 0.5*sqrt(g_t_1^2 + 4*phi_t*h[t-1]*(rt[t]-mu)^2)
     }
     
@@ -1712,7 +1712,7 @@ for (i in 2:T){
     print(i)
   }
   
-  g <- grad(ObsLL, DummyRTgarchGJR_fit$par, method = "Richardson")
+  g <- grad(ObsLL, DummyRTgarchGJR_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g, g)
 }
