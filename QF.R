@@ -51,7 +51,7 @@ library(forecast)
 
 # Luca
 #df_init <- read_excel("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
-library("readxl")
+
 #Filip
 df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
@@ -1791,55 +1791,78 @@ for (t in 1:(T-1)) {
   g_htgarchgrj[t] <- g_t
 }
 
-#actual plots
+##### actual plots ###################
 
-plot(h_1)
-plot(h_garch)
-plot(h_htgarch)
-plot(h_htgarchgrj)
 
-# 1. Global Y-limit for consistency
-y_limit <- c(0, max(c(h_1, h_garch, h_htgarch, h_htgarchgrj), na.rm = TRUE))
-
-# 2. Define Period 1
-period1 <- 400:600
-
-# 3. Plotting Grid 1 (Period 1)
-par(mfrow = c(2, 2))
-
-plot(period1, h_1[period1], type = "l", col = "blue", ylim = y_limit,
-     main = "GARCH (400-600)", xlab = "Time", ylab = "h_t")
-
-plot(period1, h_garch[period1], type = "l", col = "red", ylim = y_limit,
-     main = "GARCH-GJR (400-600)", xlab = "Time", ylab = "h_t")
-
-plot(period1, h_htgarch[period1], type = "l", col = "darkgreen", ylim = y_limit,
-     main = "RT-GARCH (400-600)", xlab = "Time", ylab = "h_t")
-
-plot(period1, h_htgarchgrj[period1], type = "l", col = "purple", ylim = y_limit,
-     main = "RT-GARCH-GJR (400-600)", xlab = "Time", ylab = "h_t")
-
-par(mfrow = c(1, 1)) # Reset
-
-# 4. Define Period 2
+y_max <- max(c(h_1, h_garch, h_htgarch, h_htgarchgrj), na.rm = TRUE)
+y_limit <- c(0, y_max)
+plot_color <- "darkblue"
+entire_period <- 1:T
 period2 <- 2000:3000
+v_lines_entire <- seq(1000, T, by = 1000)
+v_lines_p2     <- seq(2000, 3000, by = 200)
+h_lines        <- seq(0, y_max, by = 10)
 
-# 5. Plotting Grid 2 (Period 2)
+
+#entire period plot
+
+plot(entire_period, h_1, type = "l", col = plot_color, ylim = y_limit,
+     main = "GARCH (Entire Period)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_entire, col = "grey60", lty = 2) 
+abline(h = h_lines, col = "grey60", lty = 2)
+
+
+plot(entire_period, h_garch, type = "l", col = plot_color, ylim = y_limit,
+     main = "GJR-GARCH (Entire Period)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_entire, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
+
+
+plot(entire_period, h_htgarch, type = "l", col = plot_color, ylim = y_limit,
+     main = "RT-GARCH (Entire Period)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_entire, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
+
+
+plot(entire_period, h_htgarchgrj, type = "l", col = plot_color, ylim = y_limit,
+     main = "RT-GJR-GARCH (Entire Period)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_entire, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
+
+par(mfrow = c(1, 1))
+
+
+#period 2 plots
+
 par(mfrow = c(2, 2))
 
-plot(period2, h_1[period2], type = "l", col = "blue", ylim = y_limit,
-     main = "GARCH (2000-3000)", xlab = "Time", ylab = "h_t")
 
-plot(period2, h_garch[period2], type = "l", col = "red", ylim = y_limit,
-     main = "GARCH-GJR (2000-3000)", xlab = "Time", ylab = "h_t")
+plot(period2, h_1[period2], type = "l", col = plot_color, ylim = y_limit,
+     main = "GARCH (Period 2000-3000)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_p2, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
 
-plot(period2, h_htgarch[period2], type = "l", col = "darkgreen", ylim = y_limit,
-     main = "RT-GARCH (2000-3000)", xlab = "Time", ylab = "h_t")
 
-plot(period2, h_htgarchgrj[period2], type = "l", col = "purple", ylim = y_limit,
-     main = "RT-GARCH-GJR (2000-3000)", xlab = "Time", ylab = "h_t")
+plot(period2, h_garch[period2], type = "l", col = plot_color, ylim = y_limit,
+     main = "GJR-GARCH (Period 2000-3000)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_p2, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
 
-par(mfrow = c(1, 1)) # Reset
+
+plot(period2, h_htgarch[period2], type = "l", col = plot_color, ylim = y_limit,
+     main = "RT-GARCH (Period 2000-3000)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_p2, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
+
+
+plot(period2, h_htgarchgrj[period2], type = "l", col = plot_color, ylim = y_limit,
+     main = "RT-GJR-GARCH (Period 2000-3000)", xlab = "Time Index", ylab = expression(h[t]))
+abline(v = v_lines_p2, col = "grey60", lty = 2)
+abline(h = h_lines, col = "grey60", lty = 2)
+
+par(mfrow = c(1, 1))
+
+
 #------------------------------------------ESTIMATION/EVALUATION SPLIT---------------------------------------
 
 #Define the Estimation Split
@@ -2110,7 +2133,59 @@ for (t in T_est:(T - 1)) {
 
 #-----------PLOT FOR PVs and TVs-------------------------------------
 
+forecast_index <- (T_est + 1):T
 
+plot_data <- data.frame(
+  Time   = forecast_index,
+  TV_r   = TV_r,
+  TV_rv  = TV_rv,
+  GJR    = PV_GARCHGJR,
+  RT_GJR = PV_RTGARCHGJR
+)
+
+y_max <- min(max(plot_data$TV_r, na.rm = TRUE), 80)
+y_limit <- c(0, y_max)
+
+
+plot(plot_data$Time, plot_data$TV_r, type = "l", 
+     col = rgb(1, 0, 0, alpha = 0.2),
+     ylim = y_limit,
+     main = "Out-of-Sample Volatility: Forecasts vs Targets",
+     xlab = "Forecast Evaluation Horizon (Observations)",
+     ylab = "Variance Level",
+     lwd = 1)
+
+
+
+lines(plot_data$Time, plot_data$TV_rv, 
+      col = rgb(0.5, 0.5, 0.5, alpha = 0.4),
+      lwd = 1)
+
+
+lines(plot_data$Time, plot_data$GJR, 
+      col = "blue", 
+      lwd = 2)
+
+
+lines(plot_data$Time, plot_data$RT_GJR, 
+      col = "darkgreen", 
+      lwd = 2)
+
+
+h_lines_step <- seq(0, y_max, by = 10)
+abline(h = h_lines_step, col = "grey80", lty = 3)
+
+
+legend("topright", 
+       legend = c("Target: Squared Returns (TV_r)", 
+                  "Target: Realized Variance (TV_rv)", 
+                  "Forecast: GJR-GARCH", 
+                  "Forecast: RT-GJR-GARCH"),
+       col = c(rgb(1, 0, 0, alpha = 0.4), rgb(0.5, 0.5, 0.5, alpha = 0.6), "blue", "darkgreen"),
+       lty = c(1, 1, 1, 1),
+       lwd = c(1.5, 1.5, 2, 2),
+       bty = "n",
+       cex = 0.85)
 
 #-------------------------------LOSS FUNCTIONS----------------------------------------
 
