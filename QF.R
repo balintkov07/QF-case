@@ -50,10 +50,10 @@ library(forecast)
 #df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-df_init <- read_excel("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
-
+#df_init <- read_excel("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+library("readxl")
 #Filip
-#df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Extract Data from Excel, confirm correct columns, exclude first observation since NA
 
@@ -2465,6 +2465,93 @@ print("WINDOW 3")
 print(qdm_R_c2_gjr_rt)
 print(qdm_R_c2_rt_har)
 print(qdm_R_c2_rt_vix)
+
+#---Mincer-Zarnowitz tests----
+
+install.packages("car")
+library(sandwich)
+library(car)
+
+##GARCH-GJR##
+
+# rv
+
+mz_RV_GARCHGJR <- lm(TV_rv ~ PV_GARCHGJR)
+
+
+linearHypothesis(mz_RV_GARCHGJR, c("(Intercept) = 0", "PV_GARCHGJR = 1"), 
+                 vcov = NeweyWest(mz_RV_GARCHGJR, lag = 1))
+summary(mz_RV_GARCHGJR)
+
+# r
+
+mz_R_GARCHGJR <- lm(TV_r ~ PV_GARCHGJR)
+
+
+linearHypothesis(mz_R_GARCHGJR, c("(Intercept) = 0", "PV_GARCHGJR = 1"), 
+                 vcov = NeweyWest(mz_R_GARCHGJR, lag = 1))
+summary(mz_R_GARCHGJR)
+
+
+##RT-GJR##
+
+# rv
+mz_RV_RTGARCHGJR <- lm(TV_rv ~ PV_RTGARCHGJR)
+
+
+linearHypothesis(mz_RV_RTGARCHGJR, c("(Intercept) = 0", "PV_RTGARCHGJR = 1"), 
+                 vcov = NeweyWest(mz_RV_RTGARCHGJR, lag = 1))
+summary(mz_RV_RTGARCHGJR)
+
+# r
+
+mz_R_RTGARCHGJR <- lm(TV_r ~ PV_RTGARCHGJR)
+
+
+linearHypothesis(mz_R_RTGARCHGJR, c("(Intercept) = 0", "PV_RTGARCHGJR = 1"), 
+                 vcov = NeweyWest(mz_R_RTGARCHGJR, lag = 1))
+summary(mz_R_RTGARCHGJR)
+
+
+#VIX
+
+# rv
+
+mz_RV_VIX <- lm(TV_rv ~ PV_VIX)
+
+
+linearHypothesis(mz_RV_VIX, c("(Intercept) = 0", "PV_VIX = 1"), 
+                 vcov = NeweyWest(mz_RV_VIX, lag = 1))
+summary(mz_RV_VIX)
+
+# r
+
+mz_R_VIX <- lm(TV_r ~ PV_VIX)
+
+
+linearHypothesis(mz_R_VIX, c("(Intercept) = 0", "PV_VIX = 1"), 
+                 vcov = NeweyWest(mz_R_VIX, lag = 1))
+summary(mz_R_VIX)
+
+#HAR
+
+# rv
+
+mz_RV_HAR_RV <- lm(TV_rv ~ PV_HAR_RV)
+
+
+linearHypothesis(mz_RV_HAR_RV, c("(Intercept) = 0", "PV_HAR_RV = 1"), 
+                 vcov = NeweyWest(mz_RV_HAR_RV, lag = 1))
+summary(mz_RV_HAR_RV)
+
+# r
+
+mz_R_HAR_RV <- lm(TV_r ~ PV_HAR_RV)
+
+
+linearHypothesis(mz_R_HAR_RV, c("(Intercept) = 0", "PV_HAR_RV = 1"), 
+                 vcov = NeweyWest(mz_R_HAR_RV, lag = 1))
+summary(mz_R_HAR_RV)
 
 
 
