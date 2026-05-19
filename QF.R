@@ -758,7 +758,7 @@ RTgarch11 <- function(par, rt, mu) {
 
 
 start_par_RT <- c(
-  omega = 0.04557794,
+  omega = 0.04557794 ,
   alpha = 0.19471400,
   beta  = 0.77334072,
   phi = 0.01
@@ -1032,7 +1032,7 @@ Dummygarch11 <- function(par, rt, mu, DUM) {
   
   # Generate conditional variances recursively
   for (t in 1:(T - 1)) {
-    h[t + 1] <- omega + (alpha+delta*mean(DUM)) * (rt[t] - mu)^2 + beta * h[t]
+    h[t + 1] <- omega + (alpha+delta*DUM[t+1]) * (rt[t] - mu)^2 + beta * h[t]
   }
   
   # Now check h after it has been generated
@@ -1111,8 +1111,8 @@ DummyGARCH_gjr <- function(par, rt, mu, DUM) {
     indicator <- ifelse(shock[t] < 0, 1, 0)
     
     h[t+1] <- omega +
-      (alpha1 + delta*DUM[t]) * indicator * shock[t]^2 +        # alpha1 when negative
-      (alpha2 + delta*DUM[t]) * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
+      (alpha1 + delta*DUM[t+1]) * indicator * shock[t]^2 +        # alpha1 when negative
+      (alpha2 + delta*DUM[t+1]) * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
       beta * h[t]
   }
   
@@ -1544,7 +1544,7 @@ for (i in 1:T){
     
     if (i > 1){
       for (t in 2:i){
-        h[t] <- omega + (alpha + delta*DUM[t-1]) * (rt[t-1] - mu)^2 + beta * h[t-1]
+        h[t] <- omega + (alpha + delta*DUM[t]) * (rt[t-1] - mu)^2 + beta * h[t-1]
       }
     }
     
@@ -1595,8 +1595,8 @@ for (i in 1:T){
         indicator <- ifelse(shock[t-1] < 0, 1, 0)
         
         h[t] <- omega +
-          (alpha1 + delta*DUM[t-1]) * indicator * shock[t-1]^2 +        # alpha1 when negative
-          (alpha2 + delta*DUM[t-1]) * (1 - indicator) * shock[t-1]^2 +  # alpha2 when positive
+          (alpha1 + delta*DUM[t]) * indicator * shock[t-1]^2 +        # alpha1 when negative
+          (alpha2 + delta*DUM[t]) * (1 - indicator) * shock[t-1]^2 +  # alpha2 when positive
           beta * h[t-1]
       }
     }
@@ -1658,7 +1658,7 @@ for (i in 2:T){
     print(i)
   }
   
-  g <- grad(ObsLL, DummyRTgarch_fit$par, method = "Richardson")
+  g <- grad(ObsLL, DummyRTgarch_fit$par, method = "complex")
   
   FischerGARCH <- FischerGARCH + outer(g, g)
 }
