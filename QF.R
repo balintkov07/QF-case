@@ -780,7 +780,7 @@ RTgarch_fit$value
 RTgarch_fit$convergence
 
 
-h_long = (as.numeric(RTgarch_fit$par[1]))/(as.numeric(1 - RTgarch_fit$par[3] - RTgarch_fit$par[4]))
+h_long <- (as.numeric(RTgarch_fit$par[1]))/(as.numeric(1 - RTgarch_fit$par[3] - RTgarch_fit$par[4] - RTgarch_fit$par[2] - 2*RTgarch_fit$par[4]*RTgarch_fit$par[2]))
 
 #model implied unconditional variance 
 print(h_long)
@@ -856,6 +856,15 @@ RTgjr_fit <- optim(
 RTgjr_fit$par
 RTgjr_fit$value
 RTgjr_fit$convergence
+
+
+phi_bar <- (RTgjr_fit$par[5] + RTgjr_fit$par[6])/2
+alpha_bar <- (RTgjr_fit$par[2] + RTgjr_fit$par[3])/2
+
+h_long <- (as.numeric(RTgjr_fit$par[1]))/(as.numeric(1 - RTgjr_fit$par[4] - phi_bar - alpha_bar + phi_bar*alpha_bar - 3/2*(RTgjr_fit$par[2]*RTgjr_fit$par[5] + RTgjr_fit$par[3]*RTgjr_fit$par[6])))
+
+#model implied unconditional variance 
+print(h_long)
 
 #Information Criterion:
 
@@ -1345,7 +1354,9 @@ for (i in 1:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, garch_fit$par, method = "complex"), grad(ObsLL, garch_fit$par, method = "complex"))
+  g <- grad(ObsLL, garch_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g,g)
 }
 
 CovGARCH <- solve(FischerGARCH)
@@ -1394,7 +1405,9 @@ for (i in 1:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, gjr_fit$par, method = "complex"), grad(ObsLL, gjr_fit$par, method = "complex"))
+  g <- grad(ObsLL, gjr_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g,g)
 }
 
 CovGJRGARCH <- solve(FischerGARCH)
@@ -1438,7 +1451,9 @@ for (i in 2:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, RTgarch_fit$par, method = "complex"), grad(ObsLL, RTgarch_fit$par, method = "complex"))
+  g <- grad(ObsLL, RTgarch_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g, g)
 }
 
 CovRTGARCH <- solve(FischerGARCH)
@@ -1488,7 +1503,9 @@ for (i in 2:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, RTgjr_fit$par, method = "complex"), grad(ObsLL, RTgjr_fit$par, method = "complex"))
+  g <- grad(ObsLL, RTgjr_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g,g)
 }
 
 CovRTGJRGARCH <- solve(FischerGARCH)
@@ -1540,7 +1557,9 @@ for (i in 1:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, Dummygarch_fit$par, method = "complex"), grad(ObsLL, Dummygarch_fit$par, method = "complex"))
+  g <- grad(ObsLL, Dummygarch_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g,g)
 }
 
 CovDUMMYGARCH <- solve(FischerGARCH)
@@ -1591,7 +1610,9 @@ for (i in 1:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, Dummygjr_fit$par, method = "complex"), grad(ObsLL, Dummygjr_fit$par, method = "complex"))
+  g <- grad(ObsLL, Dummygjr_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g, g)
 }
 
 CovDUMMYGJRGARCH <- solve(FischerGARCH)
@@ -1637,7 +1658,9 @@ for (i in 2:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, DummyRTgarch_fit$par, method = "complex"), grad(ObsLL, DummyRTgarch_fit$par, method = "complex"))
+  g <- grad(ObsLL, DummyRTgarch_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g, g)
 }
 
 CovDUMMYRTGARCH <- solve(FischerGARCH)
@@ -1689,7 +1712,9 @@ for (i in 2:T){
     print(i)
   }
   
-  FischerGARCH <- FischerGARCH + outer(grad(ObsLL, DummyRTgarchGJR_fit$par, method = "complex"), grad(ObsLL, DummyRTgarchGJR_fit$par, method = "complex"))
+  g <- grad(ObsLL, DummyRTgarchGJR_fit$par, method = "Richardson")
+  
+  FischerGARCH <- FischerGARCH + outer(g, g)
 }
 
 CovDUMMYRTGJRGARCH <- solve(FischerGARCH)
