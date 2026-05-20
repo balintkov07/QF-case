@@ -50,7 +50,7 @@ library(forecast)
 #df_init <- read_excel("/Users/balintkovacs/Documents/GitHub/QF-case/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 # Luca
-#df_init <- read_excel("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
+df_init <- read_excel("C:/Users/lucam/Dropbox/dad&mum/University/Erasmus/BSC 3/BLK 5/Intro to Seminars/Case2_QF/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
 
 #Filip
 df_init <- read_excel("C:/Users/filip/Downloads/econometrics & QF case study 2026/econometrics & QF case study 2026/data/data.xlsx")[-1, ]
@@ -1089,8 +1089,8 @@ DummyGARCH_gjr <- function(par, rt, mu, DUM) {
   # Parameter restrictions
   # omega > 0, alpha1 >= 0, alpha2 >= 0, beta >= 0
   # Stationarity: alpha1 + 0.5 * alpha2 + beta < 1
-  if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
-      (alpha1 + alpha2) / 2 + delta*mean(DUM) + beta >= 1) {
+  if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 || delta < 0 ||
+      (alpha1 + delta*mean(DUM) + alpha2) / 2 + beta >= 1) {
     return(1e10)
   }
   
@@ -1098,7 +1098,7 @@ DummyGARCH_gjr <- function(par, rt, mu, DUM) {
   h <- numeric(T)
   
   # Initial conditional variance
-  h[1] <- omega / (1 - (alpha1 + alpha2)/2 - delta * mean(DUM) - beta)
+  h[1] <- omega / (1 - (alpha1 + delta * mean(DUM) + alpha2)/2 - beta)
   
   if (!is.finite(h[1]) || h[1] <= 0) {
     return(1e10)
@@ -1112,7 +1112,7 @@ DummyGARCH_gjr <- function(par, rt, mu, DUM) {
     
     h[t+1] <- omega +
       (alpha1 + delta*DUM[t+1]) * indicator * shock[t]^2 +        # alpha1 when negative
-      (alpha2 + delta*DUM[t+1]) * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
+      (alpha2) * (1 - indicator) * shock[t]^2 +  # alpha2 when positive
       beta * h[t]
   }
   
@@ -1244,22 +1244,22 @@ DUMMYRTgjr_garch <- function(par, rt, mu, DUM) {
   delta  <- par[7]
   
   phi_bar   <- (phi1 + phi2) / 2
-  alpha_bar <- (alpha1 + alpha2) / 2
+  alpha_bar <- (alpha1 + delta*mean(DUM) + alpha2) / 2
   
   if (omega <= 0 || alpha1 < 0 || alpha2 < 0 || beta < 0 ||
-      phi1 < 0 || phi2 < 0 ||
-      beta + phi_bar + alpha_bar + delta*mean(DUM) - (alpha_bar + delta*mean(DUM))*phi_bar + 3/2*(alpha1*phi1 + alpha2*phi2) + 3*delta*mean(DUM)*phi_bar >= 1) return(1e10)
+      phi1 < 0 || phi2 < 0 || delta < 0 ||
+      beta + phi_bar + alpha_bar +  - (alpha_bar)*phi_bar + 3/2*((alpha1 + delta*mean(DUM))*phi1 + alpha2*phi2) >= 1) return(1e10)
   
   T <- length(rt)
   h <- numeric(T)
-  h[1] <- omega / (1 - beta - phi_bar - alpha_bar - delta*mean(DUM) + (alpha_bar + delta*mean(DUM))*phi_bar - 3/2*(alpha1*phi1 + alpha2*phi2) - 3*delta*mean(DUM)*phi_bar)
+  h[1] <- omega / (1 - beta - phi_bar - alpha_bar + alpha_bar*phi_bar - 3/2*((alpha1 + delta*mean(DUM))*phi1 + alpha2*phi2))
   
   if (!is.finite(h[1]) || h[1] <= 0) return(1e10)
   
   for (t in 1:(T-1)) {
-    alpha_t <- ifelse(rt[t]   <= mu, alpha1, alpha2)
+    alpha_t <- ifelse(rt[t]   <= mu, alpha1 + delta*DUM[t+1], alpha2)
     phi_t   <- ifelse(rt[t+1] <= mu, phi1,   phi2)
-    g_t     <- omega + beta*h[t] + (alpha_t+delta*DUM[t+1])*(rt[t]-mu)^2
+    g_t     <- omega + beta*h[t] + alpha_t*(rt[t]-mu)^2
     h[t+1]  <- 0.5*g_t + 0.5*sqrt(g_t^2 + 4*phi_t*h[t]*(rt[t+1]-mu)^2)
   }
   
@@ -1586,7 +1586,7 @@ for (i in 1:T){
     h <- numeric(i)
     
     # Initial conditional variance, we do not require h1 = hhat since it is unknown pre-computation (and doesnt affect convergence)
-    h[1] <- omega/(1-(alpha1+alpha2)/2 - delta*mean(DUM) -beta)
+    h[1] <- omega/(1-(alpha1 + delta*mean(DUM) + alpha2)/2 - beta)
     
     shock <- rt - mu
     
@@ -1596,7 +1596,7 @@ for (i in 1:T){
         
         h[t] <- omega +
           (alpha1 + delta*DUM[t]) * indicator * shock[t-1]^2 +        # alpha1 when negative
-          (alpha2 + delta*DUM[t]) * (1 - indicator) * shock[t-1]^2 +  # alpha2 when positive
+          (alpha2) * (1 - indicator) * shock[t-1]^2 +  # alpha2 when positive
           beta * h[t-1]
       }
     }
@@ -1688,16 +1688,16 @@ for (i in 2:T){
     delta <- par[7]
     
     phi_bar   <- (phi1 + phi2) / 2
-    alpha_bar <- (alpha1 + alpha2) / 2
+    alpha_bar <- (alpha1 + delta*mean(DUM) + alpha2) / 2
     
     h <- numeric(i)
-    h[1] <- omega / (1 - beta - phi_bar - alpha_bar - delta*mean(DUM) + (alpha_bar + delta*mean(DUM))*phi_bar - 3/2*(alpha1*phi1 + alpha2*phi2) - 3*delta*mean(DUM)*phi_bar)
+    h[1] <- omega / (1 - beta - phi_bar - alpha_bar + alpha_bar*phi_bar - 3/2*((alpha1 + delta*mean(DUM))*phi1 + alpha2*phi2))
     
     
     for (t in 2:i) {
-      alpha_t_1 <- ifelse(rt[t-1]   <= mu, alpha1, alpha2)
+      alpha_t_1 <- ifelse(rt[t-1]   <= mu, alpha1 + delta*DUM[t], alpha2)
       phi_t   <- ifelse(rt[t] <= mu, phi1,   phi2)
-      g_t_1     <- omega + beta*h[t-1] + (alpha_t_1 + delta*DUM[t])*(rt[t-1]-mu)^2
+      g_t_1     <- omega + beta*h[t-1] + (alpha_t_1)*(rt[t-1]-mu)^2
       h[t]  <- 0.5*g_t_1 + 0.5*sqrt(g_t_1^2 + 4*phi_t*h[t-1]*(rt[t]-mu)^2)
     }
     
