@@ -1726,7 +1726,7 @@ tStats_DUMMYRTGJRGARCH <- c(omega = DummyRTgarchGJR_fit$par[1]/sqrt(CovDUMMYRTGJ
                             phi2 = DummyRTgarchGJR_fit$par[6]/sqrt(CovDUMMYRTGJRGARCH[6,6]),
                             delta = DummyRTgarchGJR_fit$par[7]/sqrt(CovDUMMYRTGJRGARCH[7,7])
 )
-print(tStats_RTGJRGARCH)
+print(tStats_DUMMYRTGJRGARCH)
 
 
 
