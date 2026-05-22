@@ -91,9 +91,10 @@ plot(
   col = ifelse(df_init$`CC Return (%)` < 0, "blue", "red"),
   pch = 20,
   xlab = "Date",
-  ylab = "CC Return",
-  main = "Close to Close Returns (daily 2009 - 2026, in %)"
+  ylab = "Close to close log returns (in %)",
+  #main = "Close to Close Returns (daily 2009 - 2026, in %)"
 )
+axis.Date(1, df_init$Date, format = "%m/%y", labels = TRUE)
 
 abline(h = 0, lty = 2, col = "black")
 
@@ -108,8 +109,8 @@ plot(
   col = ifelse(df_init$VIX < 21.3175, "black", "black"),
   pch = 20,
   xlab = "Date",
-  ylab = "VIX",
-  main = "VIX (daily 2009 - 2026, in %)"
+  ylab = "VIX Index",
+  #main = "VIX (daily 2009 - 2026, in %)"
 )
 
 abline(h = 21.3175, lty = 2, col = "black")
@@ -123,9 +124,11 @@ plot(
   col = ifelse(df_init$`RV5_SS × 10^4` < 1.074468, "blue", "red"),
   pch = 20,
   xlab = "Date",
-  ylab = "RV",
-  main = "RV (daily 2009 - 2026, in %)"
+  ylab=""
+  #main = "RV (daily 2009 - 2026, in %)"
 )
+title(ylab = expression(paste("Realised Volatility (in", "10"^"4",")")), line = 2)
+
 
 abline(h = 1.074468, lty = 2, col = "black")
 
